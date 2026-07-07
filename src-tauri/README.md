@@ -26,8 +26,35 @@ depuis la webview.
 - **Tray** (`src/tray.rs`) : icone simple + tooltip du **pire reservoir**, clic gauche =
   popover, menu droit = Ouvrir / Quitter.
 - **Sidecar** (`src/lib.rs`) : le daemon est **spawne** au demarrage (voir plus bas).
-- **Hook analytics** (`src/analytics.rs`) : double-clic sur une carte -> fenetre stub « A venir »
-  (le vrai analytics est une instruction ulterieure).
+- **Vue analytics** (`src/analytics.rs`, `src/history.rs`) : double-clic sur une carte ->
+  fenetre d'**historique** du provider (voir plus bas).
+
+## Vue analytics — historique (feature-app-analytics)
+
+Un **double-clic** sur une carte de reservoir ouvre une **fenetre analytics** `(provider, account)`
+(meme app Tauri, meme backend). Elle montre :
+
+- **En tete** : le **quota courant 5h/7d du compte** double-clique (memes jauges/badges que le tray,
+  lues depuis l'etat MQTT retained via `get_reservoirs`).
+- **Corps** : l'**historique de consommation**, en **trois visualisations SVG maison** (aucune lib
+  de charting) re-adaptees d'IakaCockpit :
+  1. **Timeline** tokens/jour : 1 ligne = 1 projet, 1 bulle = 1 jour, rayon ∝ tokens du jour ;
+  2. **Treemap** par projet : largeur ∝ tokens totaux, pilule coordinateur/sous-agent ;
+  3. **Split** coordinateur vs sous-agents delegues + totaux entree/sortie.
+
+**Source (D2)** : *relecture disque* via `iatc-core` (commande `get_history(provider)`) — les JSONL
+Claude (`~/.claude/projects`) et rollouts Codex (`~/.codex/sessions`) sont **re-scannes** a chaque
+ouverture. **Aucune persistance nouvelle** (pas de SQLite/CouchDB) ; l'historique est **all-time**
+(tout le passe present sur le disque des le 1er lancement).
+
+**Portee honnete (D4)** : l'historique est ventile **par projet** et **coord/sub**, a l'echelle du
+**provider** — pas filtre par compte : les logs **ne portent pas** l'ID de compte (limitation
+`account_ambiguous` du contrat). Un bandeau le rappelle dans la vue. Le **quota en tete** reste, lui,
+bien celui du compte.
+
+**Rafraichissement** : au **chargement** + **bouton « Rafraichir »** (re-scan disque). **Aucun
+polling** entre deux rafraichissements (l'historique n'a pas besoin d'etre live — le live, c'est le
+tray). Empty-state honnete si aucun log du provider (aucune bulle/tuile fantome, sans erreur).
 
 ## Configuration (variables d'environnement)
 
