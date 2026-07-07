@@ -1,19 +1,26 @@
-//! analytics — hook D6. Ouvre une **fenetre stub « A venir »** pour un compte donne. Ce n'est pas
-//! l'app d'analytics (hors scope, 3e instruction) : juste le point d'entree, rendu **observable**.
+//! analytics — hook D6 rempli (feature-app-analytics.md). Ouvre la **vraie vue d'historique** pour
+//! un compte `(provider, account)` double-clique. **Meme app Tauri, nouvelle fenetre** (D1) : meme
+//! backend, meme etat MQTT, acces `iatc-core` via la commande `get_history`. La vue affiche le
+//! quota courant du compte en tete (reutilise `get_reservoirs`) + l'historique par provider.
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
-/// Ouvre (ou refocalise) la fenetre stub pour `account`.
-pub fn open_stub(app: &AppHandle, account: &str) -> Result<(), String> {
-    let label = format!("analytics-{}", sanitize(account));
+/// Ouvre (ou refocalise) la vue analytics pour `(provider, account)`.
+pub fn open_view(app: &AppHandle, provider: &str, account: &str) -> Result<(), String> {
+    let label = format!("analytics-{}-{}", sanitize(provider), sanitize(account));
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.set_focus();
         return Ok(());
     }
-    let url = format!("analytics.html?account={}", encode(account));
+    let url = format!(
+        "analytics.html?provider={}&account={}",
+        encode(provider),
+        encode(account)
+    );
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
-        .title(format!("Analytics — {account} (a venir)"))
-        .inner_size(440.0, 320.0)
+        .title(format!("Analytics — {provider} / {account}"))
+        .inner_size(920.0, 680.0)
+        .min_inner_size(560.0, 420.0)
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -38,7 +45,7 @@ fn sanitize(s: &str) -> String {
     }
 }
 
-/// Encodage minimal pour la query string (les etiquettes de compte sont simples).
+/// Encodage minimal pour la query string (les etiquettes de compte/provider sont simples).
 fn encode(s: &str) -> String {
     s.chars()
         .map(|c| {

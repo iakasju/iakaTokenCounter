@@ -235,11 +235,12 @@ pub fn get_reservoirs(state: tauri::State<'_, AppState>) -> StateSnapshot {
     state.snapshot()
 }
 
-/// Commande : hook analytics (D6). Ouvre une fenetre stub « A venir » pour le compte cible.
-/// Ce n'est **pas** un no-op : le hook est observable en test.
+/// Commande : hook analytics (D6, rempli par feature-app-analytics). Ouvre la vue d'historique
+/// pour le compte `(provider, account)` double-clique. Le filtrage de l'historique se fait par
+/// **provider** (les logs ne portent pas l'ID de compte, D4) ; le quota en tete reste par compte.
 #[tauri::command]
-pub fn open_analytics(app: tauri::AppHandle, account: String) -> Result<(), String> {
-    crate::analytics::open_stub(&app, &account)
+pub fn open_analytics(app: tauri::AppHandle, provider: String, account: String) -> Result<(), String> {
+    crate::analytics::open_view(&app, &provider, &account)
 }
 
 #[cfg(test)]

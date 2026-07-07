@@ -22,3 +22,5 @@ tauri-plugin-shell = "2"
 rumqttc = "0.24"
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Coeur de mesure (lecture d'activite read-only pour la commande get_history, D2/D3).
+iakatc-core = { path = "../iakatc-core" }

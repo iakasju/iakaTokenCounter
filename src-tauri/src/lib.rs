@@ -4,6 +4,7 @@
 
 mod analytics;
 mod config;
+mod history;
 mod mqtt_sub;
 mod state;
 mod tray;
@@ -23,7 +24,8 @@ pub fn run() {
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             state::get_reservoirs,
-            state::open_analytics
+            state::open_analytics,
+            history::get_history
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

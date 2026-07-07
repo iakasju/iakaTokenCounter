@@ -1382,6 +1382,7 @@ dependencies = [
 name = "iakatokencounter-tray"
 version = "0.1.0"
 dependencies = [
+ "iakatc-core",
  "rumqttc",
  "serde",
  "serde_json",
