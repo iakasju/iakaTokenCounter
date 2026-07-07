@@ -158,7 +158,8 @@ type ActAcc = HashMap<String, HashMap<String, u64>>;
 
 /// Extrait le prefixe `YYYY-MM-DD` d'un timestamp ISO (`2026-06-30T12:00:00Z` -> `2026-06-30`).
 /// Renvoie `None` si la forme n'est pas une date (defensif — pas de bulle non datable).
-fn day_of(ts: &str) -> Option<String> {
+/// `pub(crate)` : reutilise par `measure::codex` pour bucketer l'activite Codex par jour.
+pub(crate) fn day_of(ts: &str) -> Option<String> {
     if ts.len() < 10 {
         return None;
     }

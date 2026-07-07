@@ -213,6 +213,85 @@ pub fn scan_codex_measurements(sessions_root: &Path) -> Vec<Measurement> {
     scan_codex(sessions_root).0
 }
 
+// ============================ Ventilation tokens/jour/projet (analytics) ============================
+//
+// Ajout read-only (specs/instructions/feature-app-analytics.md, D3) : **miroir Codex** de
+// `claude::fold_activity_line`, pour la timeline « travail passe » (bulle = 1 jour, rayon ∝
+// tokens/jour). Reutilise les types `ProjectActivity` / `DayTokens` et `finalize_activity` de
+// `measure::claude` (series homogenes entre providers cote GUI). AUCUNE modif de la mesure ni de
+// la publication du daemon.
+//
+// ## Choix de la grandeur bucketee par jour (micro-choix tranche)
+// Chaque `token_count` porte un `info.last_token_usage` = **delta du tour** (les deltas se somment
+// au `total_token_usage` cumulatif — verifie sur capture reelle : 12342 + 12466 = 24808). On
+// bucke donc le DELTA du tour par le **jour de l'evenement** (`timestamp` du record), pas le cumul
+// de session — c'est ce qui donne une vraie ventilation par jour meme si une session s'etale sur
+// plusieurs jours. Grandeur = `input + output - cached_input` : miroir de la regle Claude « HORS
+// cache_read » (le `input_tokens` Codex **inclut** deja `cached_input_tokens` = contexte reutilise,
+// analogue au cache_read, donc soustrait). Defensif : saturating_sub, tour a 0 ignore.
+
+use crate::measure::claude::{day_of, finalize_activity, ProjectActivity};
+use std::collections::HashMap;
+
+/// Accumulateur d'activite : projet -> (jour -> tokens). Meme forme que `claude::ActAcc`.
+type ActAcc = HashMap<String, HashMap<String, u64>>;
+
+/// Si `line` est un `token_count`, renvoie `(jour, tokens d'activite du tour)`. `None` sinon.
+/// Grandeur = `last_token_usage.input + output - cached_input` (cf. entete). PUR/testable.
+fn activity_of_token_count(line: &str) -> Option<(String, u64)> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let v: Value = serde_json::from_str(line).ok()?;
+    if v.get("type").and_then(Value::as_str) != Some("event_msg") {
+        return None;
+    }
+    let payload = v.get("payload")?;
+    if payload.get("type").and_then(Value::as_str) != Some("token_count") {
+        return None;
+    }
+    // Delta du tour (pas le cumul de session) : les deltas se somment au total cumulatif.
+    let last = payload.get("info").and_then(|i| i.get("last_token_usage"))?;
+    let n = |k: &str| last.get(k).and_then(Value::as_u64).unwrap_or(0);
+    // `input_tokens` inclut deja `cached_input_tokens` -> on retire le cache reutilise (miroir
+    // de la regle Claude « HORS cache_read »).
+    let fresh_input = n("input_tokens").saturating_sub(n("cached_input_tokens"));
+    let sum = fresh_input + n("output_tokens");
+    if sum == 0 {
+        return None;
+    }
+    let day = v.get("timestamp").and_then(Value::as_str).and_then(day_of)?;
+    Some((day, sum))
+}
+
+/// Integre UN rollout complet (contenu) dans l'accumulateur d'activite : projet lu dans le
+/// `session_meta`, chaque `token_count` bucke son delta par jour. PUR/testable, defensif.
+pub fn fold_codex_activity(acc: &mut ActAcc, content: &str) {
+    let project = match rollout_cwd(content).and_then(|c| project_of(&c)) {
+        Some(p) => p,
+        None => return,
+    };
+    for line in content.lines() {
+        if let Some((day, tokens)) = activity_of_token_count(line) {
+            *acc.entry(project.clone()).or_default().entry(day).or_insert(0) += tokens;
+        }
+    }
+}
+
+/// Scanne la racine des sessions Codex et produit l'activite byDay/projet (jours tries
+/// croissants, projets tries par total desc, borne a `top`). Miroir de
+/// `claude::scan_projects_activity`. Defensif : dossier/fichier illisible ignore.
+pub fn scan_codex_activity(sessions_root: &Path, top: usize) -> Vec<ProjectActivity> {
+    let mut acc: ActAcc = HashMap::new();
+    for path in walk_jsonl(sessions_root) {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            fold_codex_activity(&mut acc, &content);
+        }
+    }
+    finalize_activity(acc, top)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,6 +365,88 @@ mod tests {
             r#"{"type":"event_msg","payload":{"type":"agent_message","message":"OK"}}"#
         );
         assert!(fold_rollout(c).is_none());
+    }
+
+    // ---------------- Ventilation tokens/jour/projet (analytics, miroir Claude) ----------------
+
+    #[test]
+    fn activity_of_token_count_delta_hors_cache() {
+        // last_token_usage : input 12441 (dont 4992 caches), output 25 -> 12441 - 4992 + 25 = 7474.
+        let line = r#"{"timestamp":"2026-06-29T09:31:36Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":12441,"cached_input_tokens":4992,"output_tokens":25}}}}"#;
+        let (day, tokens) = activity_of_token_count(line).unwrap();
+        assert_eq!(day, "2026-06-29");
+        assert_eq!(tokens, 7474);
+    }
+
+    #[test]
+    fn activity_of_token_count_ignore_les_autres_et_les_tours_vides() {
+        for raw in [
+            // Que du cache reutilise -> fresh_input 0, output 0 -> None.
+            r#"{"timestamp":"2026-06-29T09:31:36Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":500,"cached_input_tokens":500,"output_tokens":0}}}}"#,
+            // Sans timestamp -> pas de jour -> None.
+            r#"{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":10,"output_tokens":5}}}}"#,
+            // Pas un token_count.
+            r#"{"timestamp":"2026-06-29T09:31:36Z","type":"event_msg","payload":{"type":"agent_message","message":"OK"}}"#,
+            // Pas de last_token_usage.
+            r#"{"timestamp":"2026-06-29T09:31:36Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10}}}}"#,
+            "pas du json",
+            "",
+        ] {
+            assert!(activity_of_token_count(raw).is_none(), "doit etre None : {raw}");
+        }
+    }
+
+    #[test]
+    fn fold_codex_activity_bucke_par_jour_et_projet() {
+        // Deux tours le meme jour + un tour le lendemain, meme session (meme projet).
+        let content = concat!(
+            r#"{"type":"session_meta","payload":{"cwd":"/w/proj-codex"}}"#,
+            "\n",
+            r#"{"timestamp":"2026-06-29T09:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20}}}}"#,
+            "\n",
+            r#"{"timestamp":"2026-06-29T23:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":30,"cached_input_tokens":10,"output_tokens":5}}}}"#,
+            "\n",
+            r#"{"timestamp":"2026-06-30T01:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":7,"cached_input_tokens":0,"output_tokens":0}}}}"#,
+            "\n"
+        );
+        let mut acc = ActAcc::new();
+        fold_codex_activity(&mut acc, content);
+        // Jour 29 : (100-0+20) + (30-10+5) = 120 + 25 = 145. Jour 30 : 7.
+        assert_eq!(acc["proj-codex"]["2026-06-29"], 145);
+        assert_eq!(acc["proj-codex"]["2026-06-30"], 7);
+    }
+
+    #[test]
+    fn fold_codex_activity_sans_projet_n_ajoute_rien() {
+        // Pas de session_meta -> pas de projet -> rien.
+        let mut acc = ActAcc::new();
+        fold_codex_activity(
+            &mut acc,
+            r#"{"timestamp":"2026-06-29T09:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"output_tokens":20}}}}"#,
+        );
+        assert!(acc.is_empty());
+    }
+
+    #[test]
+    fn scan_codex_activity_dossier_absent_serie_vide() {
+        let v = scan_codex_activity(Path::new("/dossier/qui/n/existe/pas"), 20);
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn fixture_reelle_produit_une_activite_codex_non_nulle() {
+        // Meme rollout reel que les mesures : deux token_count le 2026-06-29.
+        let raw = include_str!("../../../specs/mock/codex_rollout_sample.jsonl");
+        let mut acc = ActAcc::new();
+        fold_codex_activity(&mut acc, raw);
+        let v = finalize_activity(acc, 20);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].project, "codex-recette");
+        let total: u64 = v[0].days.iter().map(|d| d.tokens).sum();
+        assert!(total > 0, "l'activite Codex de la fixture doit etre > 0");
+        // Les deux tours tombent le meme jour dans la fixture.
+        assert_eq!(v[0].days.len(), 1);
+        assert_eq!(v[0].days[0].date, "2026-06-29");
     }
 
     #[test]
