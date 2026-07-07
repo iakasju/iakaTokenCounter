@@ -10,14 +10,17 @@ import type {
 } from "./types";
 
 // Seuils de fraicheur locaux (s) : au-dela, la derniere valeur connue est marquee « perimee ».
-// Alignes sur les defauts du daemon (config.json : 1200 / 21600).
-const FRESHNESS_5H = 1200;
-const FRESHNESS_7D = 21600;
+// Alignes sur les defauts du daemon (config.json : 1200 / 21600). Exportes pour la vue analytics
+// qui reutilise la meme jauge en tete (quota courant du compte).
+export const FRESHNESS_5H = 1200;
+export const FRESHNESS_7D = 21600;
 
-let onOpenAnalytics: (account: string) => void = () => {};
+let onOpenAnalytics: (provider: string, account: string) => void = () => {};
 
 /** Enregistre le callback declenche par le double-clic sur une carte (hook analytics D6). */
-export function setAnalyticsHandler(fn: (account: string) => void): void {
+export function setAnalyticsHandler(
+  fn: (provider: string, account: string) => void,
+): void {
   onOpenAnalytics = fn;
 }
 
@@ -67,7 +70,8 @@ function confidenceStyle(c: Confidence | null): {
   }
 }
 
-function gauge(title: string, w: WindowState, freshness: number): HTMLElement {
+/** Rend une jauge de quota (reutilisee par la popover ET l'en-tete analytics). */
+export function gauge(title: string, w: WindowState, freshness: number): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "gauge";
 
@@ -128,7 +132,7 @@ function card(r: ReservoirCard): HTMLElement {
   );
   el.appendChild(gauges);
 
-  el.addEventListener("dblclick", () => onOpenAnalytics(r.account));
+  el.addEventListener("dblclick", () => onOpenAnalytics(r.provider, r.account));
   return el;
 }
 

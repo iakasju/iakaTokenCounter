@@ -3,17 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Analytics — a venir</title>
+    <title>Analytics — historique</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
-  <body class="analytics-stub">
-    <main>
-      <h1>Analytics</h1>
-      <p class="soon">A venir</p>
-      <p id="account" class="account-line"></p>
-      <p class="hint">L'app d'analytics (historique, courbes, detail par compte) fera l'objet
-        d'une prochaine instruction. Ceci est le point d'entree (hook) rendu observable.</p>
-    </main>
+  <body class="analytics">
+    <header class="an-top">
+      <div class="an-titles">
+        <h1 id="title">Historique</h1>
+        <span id="updated" class="an-updated"></span>
+      </div>
+      <button id="refresh" class="an-refresh" type="button">Rafraichir</button>
+    </header>
+
+    <p id="scope" class="an-scope"></p>
+
+    <section class="an-quota">
+      <h2 class="viz-title">Quota courant du compte</h2>
+      <div id="quota"></div>
+    </section>
+
+    <main id="history" class="an-history"></main>
+
     <script type="module" src="/src/analytics.ts"></script>
   </body>
 </html>

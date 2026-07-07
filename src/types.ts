@@ -44,3 +44,36 @@ export interface StateSnapshot {
   daemonAvailable: boolean;
   worst: Worst | null;
 }
+
+// ---- Historique (vue analytics, commande `get_history`) ----
+// Miroir des types Rust `iatc-core` : ProjectActivity / DayTokens / ProjectEconomy. Series
+// *all-time* relues du disque, ventilees par projet et coord/sub, a l'echelle du PROVIDER (D4).
+
+/** Tokens d'un jour pour un projet (miroir `DayTokens`). */
+export interface DayTokens {
+  date: string;
+  tokens: number;
+}
+
+/** Serie d'activite d'un projet, jours tries croissants (miroir `ProjectActivity`). */
+export interface ProjectActivity {
+  project: string;
+  days: DayTokens[];
+}
+
+/** Cout d'un projet + split coordinateur/sous-agent (miroir `ProjectEconomy`). */
+export interface ProjectEconomy {
+  project: string;
+  input: number;
+  output: number;
+  /** Tokens de sortie du coordinateur (tours non-sidechain). */
+  coord: number;
+  /** Tokens de sortie des sous-agents delegues (sidechain ; Codex = 0). */
+  sub: number;
+}
+
+/** Charge utile de `get_history(provider)`. */
+export interface HistoryPayload {
+  activity: ProjectActivity[];
+  economy: ProjectEconomy[];
+}

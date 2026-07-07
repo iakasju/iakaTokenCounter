@@ -20,8 +20,8 @@ async function refreshSnapshot(): Promise<void> {
   }
 }
 
-setAnalyticsHandler((account) => {
-  invoke("open_analytics", { account }).catch((e) =>
+setAnalyticsHandler((provider, account) => {
+  invoke("open_analytics", { provider, account }).catch((e) =>
     console.error("open_analytics a echoue", e),
   );
 });
