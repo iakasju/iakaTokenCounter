@@ -1,0 +1,17 @@
+[package]
+name = "iakatc-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Daemon de mesure iakaTokenCounter : tick de scan conso/quota, publication MQTT retained code/value, sous-commande statusline-capture. Orchestre iakatc-core."
+
+[[bin]]
+name = "iakatc-daemon"
+path = "src/main.rs"
+
+[dependencies]
+iakatc-core = { path = "../iakatc-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+dirs = { workspace = true }
+rumqttc = "0.24"
