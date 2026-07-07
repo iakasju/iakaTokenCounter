@@ -23,6 +23,31 @@ avec les projets, les agents et la chaîne).
 > de tokens reste une **brique interne** (estimer une conso quand la source ne la donne
 > pas), mais **le produit est le moniteur tray + analytics**.
 
+## Cap (nord) — iakalogs central de coms, iakaTokenCounter daemon de mesure
+
+> Architecture pub/sub. **iakaboxlogs (iakalogs) est promu « central de coms »** (hub MQTT
+> + CouchDB déjà déployés) — pas de nouveau broker. iakaTokenCounter est un **producteur**.
+
+**Rôles :**
+- **iakalogs = backbone** : broker MQTT (`192.168.2.11:1883` / `9883` WS) + store CouchDB.
+  Point de passage unique ; à terme absorbe logs + routage des conversations vers l'extérieur.
+- **iakaTokenCounter = daemon de mesure** (headless) : mesure **conso / limits / quota** de
+  tokens et **publie dans iakalogs**, selon deux axes d'agrégation :
+  - `.../all/projets/agents/...` — par **projet × agent**,
+  - `.../all/ia/agents/...` — par **IA (fournisseur) × agent**.
+- **Subscribers** : **IakaCockpit** (widgets `economy`/`log`) et la future **GUI tray**
+  d'iakaTokenCounter s'abonnent à ce qui les intéresse — ils ne recalculent pas.
+
+**Principe d'allègement client — messages `retained` :**
+- Le daemon publie l'**état courant** et le **dernier** (`current` / `last`) en **MQTT
+  retained**, pour que tout client lise l'état directement (pas de rejeu des logs bruts).
+
+**Cœur de mesure** : réutilise `IakaCockpit/src-tauri/src/economy.rs` (Rust, testé) pour
+l'usage Claude Code, étendu à **Codex** + **capture quota** (statusline `rate_limits`).
+
+> Impact cross-projet : le **schéma de topics** et la **promotion « central de coms »**
+> touchent aussi le dépôt **iakaboxlogs** — à coordonner (concerne le portefeuille → Odin).
+
 ## Objectifs
 
 - Afficher dans le tray une **jauge de quota restant par compte IA** (≥ 1 source réelle).
@@ -122,3 +147,24 @@ Chaque feature reçoit son fichier dans `specs/instructions/` AVANT implémentat
   4. **Techno = Tauri v2** (tray multi-OS + fenêtre analytics).
   Défauts raisonnables ajustables plus tard : icône tray simple + jauges dans la
   popover (pas de dessin fin dans l'icône au MVP) ; afficher fenêtre 5h ET hebdo.
+- **2026-07-07** — **Recon écosystème (Gandalf)** : le collecteur JSONL existe déjà, testé,
+  en Rust/Tauri dans `IakaCockpit/src-tauri/src/economy.rs` (porté de `naonedge-dashboard/
+  scan.js`) ; iakaboxlogs fournit déjà Mosquitto + CouchDB. Personne ne capte le quota.
+- **2026-07-07** — **Décision d'architecture (décideur)** : iakaTokenCounter devient le
+  **berceau d'IakaDaemon**. On **déplace le collecteur utile depuis IakaCockpit** vers ici
+  (partie daemon). Le **cœur d'IakaDaemon = un bridge/relais MQTT** ; iakaTokenCounter y
+  **publie** conso/quota (topics `iakatokencounter/<projet>`, `ALL/claude/current`,
+  `.../<plan>/available`…). Le **code du daemon est vendored dans IakaCockpit** (widgets
+  `economy`/`log` le consomment) et **consommé par la GUI** d'iakaTokenCounter. Le daemon
+  est en **Rust** (réutilise economy.rs, copie Rust→Rust) → **ccusage abandonné** pour CC.
+  À terme : fusion des logs + routage conversations vers l'extérieur. IakaDaemon **bridge**
+  vers le Mosquitto central d'iakaboxlogs (pas de nouveau broker).
+- **2026-07-07** — **⚠️ Discipline MVP à trancher** : le cap est vaste ; définir la 1re
+  bouchée livrable (probable : daemon local qui publie tokencounter/quota en MQTT + tray
+  qui souscrit ; logs-fusion et routage externe = phases ultérieures).
+- **2026-07-07** — **Précision d'archi (décideur) — remplace l'idée « IakaDaemon relais »** :
+  pas de nouveau backbone. **iakalogs est promu « central de coms »** (le hub MQTT existant).
+  **iakaTokenCounter = daemon de mesure** qui publie conso/limits/quota **dans iakalogs**,
+  axes `.../all/projets/agents/...` et `.../all/ia/agents/...`. **IakaCockpit s'abonne** à ce
+  qui l'intéresse. **Messages `retained` (`current`/`last`)** pour alléger les calculs clients.
+  → Impacte aussi le dépôt **iakaboxlogs** (schéma de topics + rôle central). À remonter à Odin.
