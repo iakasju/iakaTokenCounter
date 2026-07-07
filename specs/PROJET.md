@@ -120,7 +120,7 @@ Chaque feature reçoit son fichier dans `specs/instructions/` AVANT implémentat
 |---|---|---|
 | Daemon de mesure v0 (conso + quota, publish MQTT) | `specs/instructions/feature-collecteur-logs.md` | **livré v0 — Legolas PASS** (local, non poussé) |
 | Tray multi-OS + jauge quota/compte | `specs/instructions/feature-tray-jauges.md` | **livré v0.2 — Legolas PASS** (mergé main, non poussé) |
-| App locale d'analytics (double-clic) | `specs/instructions/feature-app-analytics.md` | **cadré + validé, à coder** |
+| App locale d'analytics (double-clic) | `specs/instructions/feature-app-analytics.md` | **livré — Legolas PASS** (mergé main, non poussé) |
 | Brique comptage tokens (fallback conso) | `specs/instructions/feature-tokenizer.md` | à spécifier |
 
 > Contrat partagé : `specs/contrat-mqtt-conso.md` (topics code/value, retained current/last).
