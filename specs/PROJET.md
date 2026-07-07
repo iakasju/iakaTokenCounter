@@ -45,8 +45,10 @@ avec les projets, les agents et la chaîne).
 **Cœur de mesure** : réutilise `IakaCockpit/src-tauri/src/economy.rs` (Rust, testé) pour
 l'usage Claude Code, étendu à **Codex** + **capture quota** (statusline `rate_limits`).
 
-> Impact cross-projet : le **schéma de topics** et la **promotion « central de coms »**
-> touchent aussi le dépôt **iakaboxlogs** — à coordonner (concerne le portefeuille → Odin).
+> **Contrainte (décideur) : on ne touche PAS au dépôt iakaboxlogs** (garde son nom, son
+> code). Le daemon **publie sur son broker Mosquitto existant** (un broker accepte tout
+> topic sans modif). La **persistance CouchDB** des métriques (qui toucherait le pont
+> iakaboxlogs) est **repoussée** ; le MVP se contente des messages MQTT `retained`.
 
 ## Objectifs
 
@@ -168,3 +170,7 @@ Chaque feature reçoit son fichier dans `specs/instructions/` AVANT implémentat
   axes `.../all/projets/agents/...` et `.../all/ia/agents/...`. **IakaCockpit s'abonne** à ce
   qui l'intéresse. **Messages `retained` (`current`/`last`)** pour alléger les calculs clients.
   → Impacte aussi le dépôt **iakaboxlogs** (schéma de topics + rôle central). À remonter à Odin.
+- **2026-07-07** — **Contrainte (décideur)** : **ne pas toucher au dépôt iakaboxlogs** pour
+  l'instant (nom + code inchangés). Le daemon publie sur son **broker Mosquitto existant**
+  (aucune modif broker requise pour ajouter des topics). Persistance CouchDB des métriques
+  **repoussée** ; MVP = publication MQTT `retained` seule. Feu vert cadrage daemon v0.
