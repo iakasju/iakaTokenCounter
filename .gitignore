@@ -4,8 +4,11 @@ dist/
 .DS_Store
 /target
 **/*.rs.bk
-Cargo.lock
 .env
 .env.*
 !.env.example
 coverage/
+
+# Tauri : code genere + binaire sidecar (artefact de build, produit par scripts/prepare-sidecar.sh)
+src-tauri/gen/
+src-tauri/binaries/

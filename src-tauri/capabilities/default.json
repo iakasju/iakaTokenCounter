@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capacites de la GUI tray : popover + fenetres stub analytics, evenements core, spawn du daemon en sidecar.",
+  "windows": ["popover", "analytics-*"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [{ "name": "binaries/iakatc-daemon", "sidecar": true, "args": true }]
+    }
+  ]
+}

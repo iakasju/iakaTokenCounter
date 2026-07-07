@@ -1,0 +1,23 @@
+{
+  "name": "iakatokencounter-tray",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "GUI tray iakaTokenCounter : jauges de reservoir par compte IA (subscriber MQTT retained).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-shell": "^2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "typescript": "^5.6.0",
+    "vite": "^6"
+  }
+}
