@@ -1,0 +1,10 @@
+{
+  "account": "max",
+  "provider": "claude",
+  "captured_at": 4102444800,
+  "source_version": "2.1.90",
+  "rate_limits": {
+    "five_hour": { "used_percentage": 23.5, "resets_at": 4102448400 },
+    "seven_day": { "used_percentage": 41.2, "resets_at": 4103049600 }
+  }
+}

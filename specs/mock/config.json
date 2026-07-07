@@ -1,0 +1,15 @@
+{
+  "freshness": {
+    "five_hour_seconds": 1200,
+    "seven_day_seconds": 21600
+  },
+  "ceilings": {
+    "claude": {
+      "default": { "five_hour_tokens": null, "seven_day_tokens": null },
+      "demo": { "five_hour_tokens": 1000000, "seven_day_tokens": 10000000 }
+    },
+    "codex": {
+      "default": { "five_hour_tokens": null, "seven_day_tokens": null }
+    }
+  }
+}

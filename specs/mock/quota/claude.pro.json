@@ -1,0 +1,9 @@
+{
+  "account": "pro",
+  "provider": "claude",
+  "captured_at": 1751846100,
+  "source_version": "2.1.90",
+  "rate_limits": {
+    "five_hour": { "used_percentage": 88.0, "resets_at": 4102448400 }
+  }
+}
