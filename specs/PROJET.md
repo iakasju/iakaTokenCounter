@@ -23,16 +23,27 @@ avec les projets, les agents et la chaîne).
 > de tokens reste une **brique interne** (estimer une conso quand la source ne la donne
 > pas), mais **le produit est le moniteur tray + analytics**.
 
-## Cap (nord) — iakalogs central de coms, iakaTokenCounter daemon de mesure
+## Cap (nord) — iakahub (broker local embarqué), iakaTokenCounter daemon de mesure
 
-> Architecture pub/sub. **iakaboxlogs (iakalogs) est promu « central de coms »** (hub MQTT
-> + CouchDB déjà déployés) — pas de nouveau broker. iakaTokenCounter est un **producteur**.
+> Architecture pub/sub avec un **backbone LOCAL et autonome : iakahub**. Décision décideur
+> (2026-07-08) : **pas de dépendance à un broker externe authentifié** (le mot de passe
+> iakabox est irrécupérable et bloquait la connexion) → iakahub embarque son propre broker.
 
-**Rôles :**
-- **iakalogs = backbone** : broker MQTT (`192.168.2.11:1883` / `9883` WS) + store CouchDB.
-  Point de passage unique ; à terme absorbe logs + routage des conversations vers l'extérieur.
+**iakahub = daemon local qui embarque son propre broker MQTT** (born ici, dans
+iakaTokenCounter, avec vocation à devenir un composant portefeuille — ressort Odin) :
+- **Broker MQTT embarqué in-process** (chemin technique : crate Rust **`rumqttd`**, pendant
+  broker de `rumqttc` déjà utilisé), écoute en **local** (`127.0.0.1`). Aucun mot de passe,
+  aucune dépendance réseau → **standalone total**.
+- **Rôle = broker + orchestration** uniquement. La **mesure reste séparée** : le measure
+  daemon d'iakaTokenCounter est une brique distincte qui **se connecte à iakahub**.
+- **Local d'abord.** Un **bridge MQTT vers le Mosquitto iakabox** (`192.168.2.11:1883`) est
+  une **option ultérieure** (vue portefeuille), pas le MVP.
+
+**Rôles (pub/sub) :**
+- **iakahub = backbone local** : broker MQTT embarqué (`127.0.0.1`). Point de passage unique
+  sur le poste ; à terme bridge iakabox + absorption logs + routage conversations.
 - **iakaTokenCounter = daemon de mesure** (headless) : mesure **conso / limits / quota** de
-  tokens et **publie dans iakalogs**, selon deux axes d'agrégation :
+  tokens et **publie dans le broker d'iakahub** (`127.0.0.1`), selon deux axes d'agrégation :
   - `.../all/projets/agents/...` — par **projet × agent**,
   - `.../all/ia/agents/...` — par **IA (fournisseur) × agent**.
 - **Subscribers** : **IakaCockpit** (widgets `economy`/`log`) et la future **GUI tray**
@@ -121,6 +132,7 @@ Chaque feature reçoit son fichier dans `specs/instructions/` AVANT implémentat
 | Daemon de mesure v0 (conso + quota, publish MQTT) | `specs/instructions/feature-collecteur-logs.md` | **livré v0 — Legolas PASS** (local, non poussé) |
 | Tray multi-OS + jauge quota/compte | `specs/instructions/feature-tray-jauges.md` | **livré v0.2 — Legolas PASS** (mergé main, non poussé) |
 | App locale d'analytics (double-clic) | `specs/instructions/feature-app-analytics.md` | **livré — Legolas PASS** (mergé main, non poussé) |
+| **iakahub v0** (broker MQTT local embarqué + orchestration) | `specs/instructions/feature-iakahub.md` | **cadré + validé, à coder** (broker local → débloque les jauges) |
 | Brique comptage tokens (fallback conso) | `specs/instructions/feature-tokenizer.md` | à spécifier |
 
 > Contrat partagé : `specs/contrat-mqtt-conso.md` (topics code/value, retained current/last).
@@ -166,6 +178,17 @@ Chaque feature reçoit son fichier dans `specs/instructions/` AVANT implémentat
 - **2026-07-07** — **⚠️ Discipline MVP à trancher** : le cap est vaste ; définir la 1re
   bouchée livrable (probable : daemon local qui publie tokencounter/quota en MQTT + tray
   qui souscrit ; logs-fusion et routage externe = phases ultérieures).
+- **2026-07-08** — **Recette live** : MVP installé et lancé ; **quota Max réel capturé**
+  (5h 93 % / 7j 47 % restant). MAIS **broker iakabox inaccessible** : `allow_anonymous false`
+  + **mot de passe perdu/irrécupérable** (hash). Le measure daemon et le tray ne peuvent pas
+  s'y connecter → jauges vides.
+- **2026-07-08** — **Décision d'architecture (décideur) — iakahub** : introduire **iakahub**,
+  un **daemon local qui embarque son propre broker MQTT** (crate Rust `rumqttd`, `127.0.0.1`),
+  pour supprimer toute dépendance à un broker externe authentifié. **3 arbitrages** : (1)
+  iakahub **naît ici** dans iakaTokenCounter (vocation composant portefeuille → Odin plus
+  tard) ; (2) iakahub = **broker + orchestration seul**, le measure daemon reste **séparé** et
+  s'y connecte ; (3) **local d'abord**, bridge iakabox = option ultérieure. Ceci **remplace**
+  l'idée « publier dans le Mosquitto iakabox » comme backbone du MVP.
 - **2026-07-07** — **Précision d'archi (décideur) — remplace l'idée « IakaDaemon relais »** :
   pas de nouveau backbone. **iakalogs est promu « central de coms »** (le hub MQTT existant).
   **iakaTokenCounter = daemon de mesure** qui publie conso/limits/quota **dans iakalogs**,
