@@ -1,10 +1,10 @@
 # iakaTokenCounter — GUI tray (Tauri v2)
 
-La **face visible** du produit : une **icone de barre systeme** qui affiche, dans une popover,
-une **carte de reservoir par compte IA** avec deux jauges (fenetre **5 h** et **7 j**) et un
-**badge de confiance**. C'est un **pur subscriber** du contrat MQTT retained : elle **lit** les
-codes publies par le daemon et les **rend** — elle ne recalcule rien et ne touche jamais MQTT
-depuis la webview.
+La **face visible** du produit : une **icone de barre systeme** qui compose le **logo officiel
+de l'IA** la plus critique + **deux mini-reservoirs** (5 h / 7 j), et une **popover** qui affiche
+une **carte par compte IA** avec deux **barres horizontales** (« fuel bars ») et un **badge de
+confiance**. C'est un **pur subscriber** du contrat MQTT retained : elle **lit** les codes publies
+par le daemon et les **rend** — elle ne recalcule rien et ne touche jamais MQTT depuis la webview.
 
 > Interface d'entree figee par [`../specs/contrat-mqtt-conso.md`](../specs/contrat-mqtt-conso.md).
 > Cadrage : [`../specs/instructions/feature-tray-jauges.md`](../specs/instructions/feature-tray-jauges.md).
@@ -31,8 +31,10 @@ depuis la webview.
 
 - **Backend Rust** (`src/mqtt_sub.rs`, `src/state.rs`) : seul a parler MQTT. Abonnements
   `…/all/ia/+/+/quota/#` (jauges, decouverte dynamique des comptes) et `…/meta/daemon/#`.
-- **Tray** (`src/tray.rs`) : icone simple + tooltip du **pire reservoir**, clic gauche =
-  popover, menu droit = Ouvrir / Quitter.
+- **Tray** (`src/tray.rs`, `src/icon.rs`) : icone **composee** (logo officiel + 2 mini-reservoirs
+  du **pire compte**, repli 1 barre) rasterisee en RGBA via `resvg` et recablee (`set_icon`) a
+  chaque maj d'etat ; tooltip du **pire reservoir** ; clic gauche = popover, menu droit =
+  Ouvrir / Quitter. Icone **couleur non-template** (lisible clair ET sombre).
 - **Sidecar** (`src/lib.rs`) : le backbone **`iakahub`** est **spawne** au demarrage (voir plus bas).
 - **Vue analytics** (`src/analytics.rs`, `src/history.rs`) : double-clic sur une carte ->
   fenetre d'**historique** du provider (voir plus bas).
@@ -123,10 +125,27 @@ bash scripts/quality-report.sh   # gate : typecheck+build front, cargo check/cli
 
 | `confidence` | Rendu |
 |---|---|
-| `official` | jauge pleine, teinte « sur » (vert) |
+| `official` | barre pleine nette, teinte par niveau, badge `✓` |
 | `official_stale` | teinte ambre, badge horloge (valeur datee) |
 | `local_estimate` | hachure + `~` devant le % (bleu) |
 | `none` (ou `remaining_pct` `null`) | grise, `?` a la place du % |
 
 Une fenetre est en plus marquee **« perime »** si sa derniere valeur depasse un seuil de fraicheur
 local (defauts 1200 s / 21600 s) ou si la recharge (`resets_at`) est passee.
+
+## Icone de tray — composition (D2/D3)
+
+L'icone (canvas **40 × 18**, rasterise **@2x 80 × 36**) compose, pour le **compte le plus critique**
+(plus petit % restant, toutes fenetres confondues) : le **logo officiel** de l'IA a gauche (16×16)
++ **deux mini-reservoirs** a droite (repli **1 barre** si un seul quota). Largeur de barre
+`= max(2, round(pct/100 × 18))`, teinte par niveau (≥50 vert / 20–49 ambre / <20 rouge), hachure
+45° pour `local_estimate`, piste pointillee pour `none`/inconnu (jamais de faux plein). Voie A de la
+spec `docs/design/tray-icon-spec.html` : SVG compose puis rasterise avec **`resvg`** (couleur
+**non-template**). Le popover liste **tous** les comptes ; le tooltip reste le pire reservoir.
+
+> **Marques deposees — usage strictement nominatif.** Le symbole Anthropic / « Claude »
+> (`#D97757`) et le nœud OpenAI / Codex (`#10A37F`) sont des **marques deposees de leurs
+> proprietaires respectifs**. Ils sont reproduits d'apres leur **trace officiel** et employes
+> **uniquement a titre nominatif** pour identifier de quel compte IA il s'agit. iakaTokenCounter
+> n'est **ni affilie a, ni sponsorise par** Anthropic ou OpenAI. Les IA sans logo connu tombent
+> sur un **fallback neutre** (pastille `#6F6F78` + initiale).
