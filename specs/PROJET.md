@@ -133,6 +133,7 @@ Chaque feature reçoit son fichier dans `specs/instructions/` AVANT implémentat
 | Tray multi-OS + jauge quota/compte | `specs/instructions/feature-tray-jauges.md` | **livré v0.2 — Legolas PASS** (mergé main, non poussé) |
 | App locale d'analytics (double-clic) | `specs/instructions/feature-app-analytics.md` | **livré — Legolas PASS** (mergé main, non poussé) |
 | **iakahub v0** (broker MQTT local embarqué + orchestration) | `specs/instructions/feature-iakahub.md` | **livré — Legolas PASS** (mergé main ; broker local 127.0.0.1) |
+| Refonte visuelle tray (icône réservoirs + popover barres) | `specs/instructions/feature-tray-visuals.md` | **cadré + validé, à coder** |
 | Brique comptage tokens (fallback conso) | `specs/instructions/feature-tokenizer.md` | à spécifier |
 
 > Contrat partagé : `specs/contrat-mqtt-conso.md` (topics code/value, retained current/last).

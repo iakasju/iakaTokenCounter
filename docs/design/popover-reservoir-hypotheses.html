@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iakaTokenCounter — 5 hypothèses de reservoir (carte tray) · design Cinabre</title>
+<style>
+/* ============================================================================
+   PAGE (chrome de presentation) — design Cinabre : gris/blanc + rouge cinabre.
+   Aucune ressource externe : polices systeme en stand-in (Georgia ~ Spectral).
+   ========================================================================== */
+:root{
+  --bg-primary:#e8e8eb; --bg-card:#ffffff; --bg-deep:#f3f3f6;
+  --line:#dcdce1; --line-soft:#e7e7ec;
+  --text-primary:#141417; --text-secondary:#4a4a52; --text-muted:#6f6f78;
+  --accent:#bd2f27; --accent-2:#9e211a; --accent-ink:#9e211a; --accent-rgb:189,47,39;
+  --grad:linear-gradient(135deg,#bd2f27,#9e211a);
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --font-serif:Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.6;-webkit-font-smoothing:antialiased}
+
+.hero{text-align:center;padding:3rem 2rem 1.4rem;max-width:960px;margin:0 auto}
+.hero-badge{display:inline-flex;align-items:center;gap:.5rem;background:#fff;border:1px solid var(--line);border-radius:999px;padding:.4rem 1rem;font:700 .68rem var(--mono);color:var(--accent-ink);letter-spacing:.14em;text-transform:uppercase;box-shadow:0 1px 2px rgba(20,20,25,.05)}
+.hero h1{font-family:var(--font-serif);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;letter-spacing:-.015em;margin:1.1rem 0 .4rem;line-height:1.1}
+.hero p{color:var(--text-secondary);max-width:680px;margin:.5rem auto 0;font-size:1.02rem}
+.hero .meta{font-family:var(--mono);font-size:.72rem;color:var(--text-muted);margin-top:1rem;letter-spacing:.04em}
+
+main{max-width:1180px;margin:0 auto;padding:1rem 1.6rem 5rem}
+.section-label{display:inline-flex;align-items:center;gap:.5rem;font:700 .7rem var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--accent-ink);margin-bottom:.8rem}
+.section-label::before{content:'';width:22px;height:2px;background:var(--grad)}
+
+/* Bandeau convention */
+.conv{background:#fff;border:1px solid var(--line);border-radius:12px;padding:1.3rem 1.5rem;margin:1rem 0 2.2rem;box-shadow:0 1px 2px rgba(20,20,25,.05),0 8px 22px rgba(20,20,25,.06)}
+.conv h2{font-family:var(--font-serif);font-size:1.3rem;margin-bottom:.5rem}
+.conv p{color:var(--text-secondary);font-size:.95rem;max-width:80ch;margin-bottom:.5rem}
+.conv .cols{display:flex;flex-wrap:wrap;gap:1.4rem;margin-top:1rem}
+.conv .col{flex:1;min-width:250px}
+.conv .col h3{font-size:.82rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.6rem}
+.swatches{display:flex;gap:.5rem;flex-wrap:wrap}
+.sw{display:flex;flex-direction:column;gap:.25rem;font:600 .7rem var(--mono);color:var(--text-secondary);align-items:center}
+.sw b{width:52px;height:16px;border-radius:5px;display:block}
+.treat{display:flex;flex-direction:column;gap:.5rem}
+.treat .t{display:flex;align-items:center;gap:.7rem;font-size:.85rem;color:var(--text-secondary)}
+.treat .t .demo{width:70px;height:14px;border-radius:7px;flex:none;background:#e6e6ea;overflow:hidden;position:relative}
+.treat .t .demo i{position:absolute;left:0;top:0;bottom:0;display:block}
+.treat .t code{background:rgba(var(--accent-rgb),.08);color:var(--accent-ink);padding:.05rem .35rem;border-radius:4px;font-size:.78rem}
+
+/* Grille des hypotheses */
+.hyp{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1.4rem 1.6rem 1.6rem;margin:0 0 1.8rem;box-shadow:0 1px 2px rgba(20,20,25,.05),0 10px 26px rgba(20,20,25,.06)}
+.hyp-head{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap;margin-bottom:.2rem}
+.hyp-num{font-family:var(--mono);font-weight:700;color:#fff;background:var(--grad);border-radius:8px;padding:.15rem .6rem;font-size:.85rem}
+.hyp-head h2{font-family:var(--font-serif);font-size:1.5rem;letter-spacing:-.01em}
+.hyp-head .tagline{color:var(--text-muted);font-size:.9rem;font-style:italic}
+.hyp-body{display:flex;flex-wrap:wrap;gap:1.4rem;margin-top:1.1rem;align-items:flex-start}
+.stage{display:flex;gap:1rem;flex-wrap:wrap}
+.stage-col{display:flex;flex-direction:column;gap:.5rem;align-items:center}
+.stage-lab{font:700 .66rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted)}
+.notes{flex:1;min-width:260px}
+.notes h4{font-size:.82rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--accent-ink);margin:.2rem 0 .5rem}
+.notes ul{list-style:none;display:flex;flex-direction:column;gap:.55rem}
+.notes li{font-size:.9rem;color:var(--text-secondary);padding-left:1.1rem;position:relative}
+.notes li::before{content:'';position:absolute;left:0;top:.5rem;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.notes li b{color:var(--text-primary)}
+.notes .kv{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.7rem}
+.notes .kv span{font:600 .7rem var(--mono);padding:.12rem .5rem;border-radius:6px;border:1px solid var(--line);color:var(--text-secondary)}
+.notes .kv .ok{color:#2f7d43;border-color:#bfe0c8}
+.notes .kv .mid{color:#9a5b17;border-color:#e6d3b3}
+
+.states-wrap{margin-top:.4rem}
+.states-cap{font:700 .62rem var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--text-muted);margin-bottom:.4rem;text-align:center}
+
+/* ============================================================================
+   POPOVER TRAY simule — deux themes (macOS dark + light)
+   ========================================================================== */
+.pop{width:320px;border-radius:12px;overflow:hidden;font-family:var(--font-sans);position:relative}
+.pop.dark{
+  --ok:#37c98c; --mid:#e3a83c; --low:#f2564b;
+  --est:#5aa9ff; --non:#828d9e;
+  --track:#12161e; --card:#2b303b; --pbg:#20242d; --line2:#3a404d;
+  --tx:#e8ebf1; --mut:#98a1b2;
+  background:#20242d;color:var(--tx);
+  box-shadow:0 8px 30px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.05);
+}
+.pop.light{
+  --ok:#1f9d63; --mid:#b9781a; --low:#d63a2f;
+  --est:#2f6bd0; --non:#7a7a80;
+  --track:#e4e4e9; --card:#ffffff; --pbg:#ececf0; --line2:#d4d4da;
+  --tx:#1d1d1f; --mut:#6e6e73;
+  background:#ececf0;color:var(--tx);
+  box-shadow:0 8px 30px rgba(0,0,0,.18),inset 0 0 0 1px rgba(0,0,0,.06);
+}
+.pop-top{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;font-size:12px;border-bottom:1px solid var(--line2)}
+.pop-brand{font-weight:700;letter-spacing:-.01em}
+.pop-brand .k{color:#bd2f27}
+.pop-dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.pop-body{padding:9px 11px;display:flex;flex-direction:column;gap:9px}
+
+.acard{background:var(--card);border-radius:9px;padding:9px 11px;border:1px solid var(--line2)}
+.acard-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.acard-name{font-weight:700;font-size:12.5px}
+.acard-name .plan{color:var(--mut);font-weight:500}
+.acard-tier{font:600 9px var(--mono);color:var(--mut);border:1px solid var(--line2);border-radius:5px;padding:1px 5px}
+
+/* fill hues (orthogonal a la confiance) */
+.f-ok{--fh:var(--ok)} .f-mid{--fh:var(--mid)} .f-low{--fh:var(--low)}
+
+/* badge de confiance : glyphe + libelle, teinte discrete, jamais un aplat */
+.conf{display:inline-flex;align-items:center;gap:3px;font:700 8.5px var(--mono);padding:1px 5px 1px 4px;border-radius:6px;border:1px solid var(--line2);color:var(--mut);white-space:nowrap;letter-spacing:.01em}
+.conf i{font-style:normal;font-size:10px;line-height:1}
+.conf-official{color:var(--ok)}
+.conf-stale{color:var(--mid)}
+.conf-estimate{color:var(--est)}
+.conf-none{color:var(--non)}
+
+/* entete de jauge commune */
+.gh{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px}
+.gh-l{display:flex;align-items:baseline;gap:6px;min-width:0}
+.gh-win{font-weight:700;font-size:11.5px}
+.gv{font:800 13px var(--mono);letter-spacing:-.02em}
+.gv.f-ok{color:var(--ok)} .gv.f-mid{color:var(--mid)} .gv.f-low{color:var(--low)}
+.gv.gv-none{color:var(--non);font-weight:700}
+.gh-r{display:flex;align-items:center;gap:5px;flex:none}
+.cd{font:600 9.5px var(--mono);color:var(--mut);white-space:nowrap}
+
+/* traitement confiance applique au FILL (hue portee par --fh) */
+.solid{background:var(--fh)}
+.hatch{background:repeating-linear-gradient(45deg,var(--fh),var(--fh) 3px,rgba(120,120,120,.35) 3px,rgba(120,120,120,.35) 6px)}
+.dim{background:var(--fh);opacity:.4;filter:saturate(.5)}
+.hollowfill{background:transparent}
+
+/* ---- H1 : barres horizontales ("fuel bars") ---- */
+.h1-row + .h1-row{margin-top:9px}
+.h1-track{height:14px;border-radius:7px;background:var(--track);overflow:hidden;position:relative}
+.h1-track.none{border:1px dashed var(--line2);background:transparent}
+.h1-fill{height:100%;border-radius:7px}
+.h1-track.none::after{content:'inconnu';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 8.5px var(--mono);color:var(--non);letter-spacing:.05em}
+
+/* ---- H2 : cuves verticales (tanks) ---- */
+.h2-wrap{display:flex;gap:12px}
+.h2-cell{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.h2-tank{width:100%;max-width:64px;height:74px;border:2px solid var(--line2);border-radius:9px;background:var(--track);position:relative;overflow:hidden}
+.h2-tank.none{border-style:dashed}
+.h2-fill{position:absolute;left:0;right:0;bottom:0;border-radius:0 0 6px 6px}
+.h2-fill::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:rgba(255,255,255,.28)}
+.h2-q{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:800 20px var(--mono);color:var(--non)}
+.h2-meta{display:flex;flex-direction:column;align-items:center;gap:1px;margin-top:2px}
+
+/* ---- H3 : batterie segmentee ---- */
+.h3-row + .h3-row{margin-top:9px}
+.h3-batt{display:flex;align-items:center;gap:4px}
+.h3-body{flex:1;display:flex;gap:2.5px;padding:2.5px;border:1.5px solid var(--line2);border-radius:5px;background:var(--track)}
+.h3-cell{flex:1;height:15px;border-radius:2px}
+.h3-cell.off{box-shadow:inset 0 0 0 1px var(--line2)}
+.h3-cap{width:3.5px;height:11px;border-radius:0 2px 2px 0;background:var(--line2)}
+.h3-none{flex:1;display:flex;align-items:center;justify-content:center;height:20px;font:700 9px var(--mono);color:var(--non);border:1px dashed var(--line2);border-radius:5px}
+
+/* ---- H4 / H5 : SVG ---- */
+.svg-arc{display:block}
+.arc-legend{display:flex;flex-direction:column;gap:3px;margin-top:2px}
+.arc-leg{display:flex;align-items:center;gap:6px;font-size:11px}
+.arc-leg .sw{width:9px;height:9px;border-radius:3px;flex:none}
+.arc-leg .w{font-weight:700;width:20px}
+.arc-leg .v{font:800 12px var(--mono);letter-spacing:-.02em}
+.h4-flex{display:flex;align-items:center;gap:6px}
+
+.h5-wrap{display:flex;gap:8px}
+.h5-cell{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px}
+.h5-meta{display:flex;flex-direction:column;align-items:center;gap:1px;margin-top:1px}
+
+/* strip des 4 etats */
+.states{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;background:#22262f;border-radius:10px;padding:11px 10px}
+.st{display:flex;flex-direction:column;align-items:center;gap:5px;width:66px}
+.st-cap{font:700 8px var(--mono);color:#98a1b2;text-transform:uppercase;letter-spacing:.04em;text-align:center;line-height:1.3}
+.st .pop{width:auto}
+/* mini contexts inherit dark tokens */
+.st-box{--ok:#37c98c;--mid:#e3a83c;--low:#f2564b;--est:#5aa9ff;--non:#828d9e;--track:#12161e;--line2:#3a404d;--mut:#98a1b2}
+
+.footer{text-align:center;padding:2.5rem 1rem;border-top:1px solid var(--line);margin-top:1rem;color:var(--text-muted);font-size:.82rem}
+.footer .line{width:56px;height:3px;background:var(--grad);border-radius:999px;margin:0 auto 1rem}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <span class="hero-badge">iakaTokenCounter · design Cinabre</span>
+  <h1>Cinq reservoirs pour la carte de compte</h1>
+  <p>Le decideur veut voir « plusieurs formes de reservoir » a la place de la jauge ronde unique.
+     Voici <b>5 hypotheses distinctes</b> de la carte de compte du <b>popover tray</b> : chacune gere les
+     <b>deux fenetres de quota</b> (5&nbsp;h · 7&nbsp;j) et les <b>quatre etats de confiance</b>, rendue a
+     l'echelle reelle du tray (~320&nbsp;px), en <b>sombre et clair</b>.</p>
+  <div class="meta">Loki — direction artistique · maquette non contractuelle · CSS + SVG pur (aucune ressource externe)</div>
+</header>
+
+<main>
+
+  <!-- ============ CONVENTION COMMUNE ============ -->
+  <div class="section-label">Le principe commun</div>
+  <div class="conv">
+    <h2>Deux dimensions, deux langages — jamais confondus</h2>
+    <p>Un reservoir dit deux choses a la fois : <b>combien il reste</b> (le niveau) et
+       <b>a quel point on y croit</b> (la confiance de la donnee). Pour eviter que les couleurs se
+       marchent dessus, chaque hypothese suit la meme regle :</p>
+    <div class="cols">
+      <div class="col">
+        <h3>Niveau → la teinte (echelle carburant)</h3>
+        <div class="swatches">
+          <div class="sw"><b style="background:#1f9d63"></b>plein · ok</div>
+          <div class="sw"><b style="background:#b9781a"></b>moyen</div>
+          <div class="sw"><b style="background:#d63a2f"></b>bas · alerte</div>
+          <div class="sw"><b style="background:#e4e4e9"></b>vide</div>
+        </div>
+        <p style="font-size:.82rem;margin-top:.6rem">Le pourcentage <i>restant</i> pilote la teinte : on
+           lit l'urgence au coup d'oeil, sans chiffre. Le rouge cinabre de la charte coincide avec l'alerte
+           « presque vide » — la marque et la fonction s'accordent.</p>
+      </div>
+      <div class="col">
+        <h3>Confiance → le traitement de surface + un glyphe</h3>
+        <div class="treat">
+          <div class="t"><span class="demo"><i style="background:#1f9d63;width:70%"></i></span> <code>official</code> — plein net · glyphe ✓</div>
+          <div class="t"><span class="demo"><i style="background:#1f9d63;width:70%;opacity:.4;filter:saturate(.5)"></i></span> <code>official_stale</code> — grise/attenue · glyphe ⟳</div>
+          <div class="t"><span class="demo"><i style="width:70%;background:repeating-linear-gradient(45deg,#2f6bd0,#2f6bd0 3px,#bcc 3px,#bcc 6px)"></i></span> <code>local_estimate</code> — hachure · prefixe ~</div>
+          <div class="t"><span class="demo" style="border:1px dashed #c7c7cf"></span> <code>none</code> — creux/vide · glyphe ?</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">Les cinq hypotheses</div>
+
+  <!-- ==================================================================== -->
+  <!-- H1 : BARRES HORIZONTALES -->
+  <!-- ==================================================================== -->
+  <section class="hyp">
+    <div class="hyp-head">
+      <span class="hyp-num">01</span>
+      <h2>Barres horizontales</h2>
+      <span class="tagline">« fuel bars » — deux reservoirs allonges qui se vident</span>
+    </div>
+    <div class="hyp-body">
+      <div class="stage">
+        <div class="stage-col">
+          <div class="stage-lab">macOS sombre</div>
+          <div class="pop dark">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <!-- claude/max official -->
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">2 fenetres</span></div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-ok">73%</span></span><span class="gh-r"><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h1-track"><div class="h1-fill f-ok solid" style="width:73%"></div></div>
+                </div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv f-mid">41%</span></span><span class="gh-r"><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h1-track"><div class="h1-fill f-mid solid" style="width:41%"></div></div>
+                </div>
+              </div>
+              <!-- codex/plus degrade -->
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">2 fenetres</span></div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-low">~14%</span></span><span class="gh-r"><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></span></div>
+                  <div class="h1-track"><div class="h1-fill f-low hatch" style="width:14%"></div></div>
+                </div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv gv-none">?</span></span><span class="gh-r"><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></span></div>
+                  <div class="h1-track none"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-col">
+          <div class="stage-lab">macOS clair</div>
+          <div class="pop light">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">2 fenetres</span></div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-ok">73%</span></span><span class="gh-r"><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h1-track"><div class="h1-fill f-ok solid" style="width:73%"></div></div>
+                </div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv f-mid">41%</span></span><span class="gh-r"><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h1-track"><div class="h1-fill f-mid solid" style="width:41%"></div></div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">2 fenetres</span></div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-low">~14%</span></span><span class="gh-r"><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></span></div>
+                  <div class="h1-track"><div class="h1-fill f-low hatch" style="width:14%"></div></div>
+                </div>
+                <div class="h1-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv gv-none">?</span></span><span class="gh-r"><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></span></div>
+                  <div class="h1-track none"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h4>L'idee</h4>
+        <ul>
+          <li>Deux barres empilees = deux reservoirs. La <b>largeur = le niveau</b>, la teinte donne l'alerte. C'est la forme la plus <b>directe et la plus lisible</b> a l'echelle tray.</li>
+          <li><b>Force :</b> zero courbe, cout SVG nul (pur CSS), s'empile a l'infini si on ajoute des comptes. Le pourcentage chiffre et le compte a rebours tiennent sur la meme ligne.</li>
+          <li><b>Limite :</b> peu « spectaculaire » — proche de l'existant. La barre <code>none</code> perd sa metaphore de niveau (on la neutralise en pointille + « inconnu »).</li>
+        </ul>
+        <div class="kv"><span>2 fenetres <b class="ok">✓</b></span><span>4 etats <b class="ok">✓</b></span><span>SVG <b class="ok">aucun</b></span><span>lisibilite tray <b class="ok">A+</b></span></div>
+      </div>
+    </div>
+    <div class="states-wrap">
+      <div class="states-cap">Les 4 etats de confiance dans cette forme</div>
+      <div class="states st-box">
+        <div class="st"><div class="st-cap">official ✓</div><div style="width:60px;height:12px;border-radius:6px;background:#12161e;overflow:hidden"><div style="width:73%;height:100%;border-radius:6px;background:#37c98c"></div></div></div>
+        <div class="st"><div class="st-cap">perime ⟳</div><div style="width:60px;height:12px;border-radius:6px;background:#12161e;overflow:hidden"><div style="width:60%;height:100%;border-radius:6px;background:#e3a83c;opacity:.4;filter:saturate(.5)"></div></div></div>
+        <div class="st"><div class="st-cap">~estime</div><div style="width:60px;height:12px;border-radius:6px;background:#12161e;overflow:hidden"><div style="width:30%;height:100%;border-radius:6px;background:repeating-linear-gradient(45deg,#f2564b,#f2564b 3px,rgba(120,120,120,.35) 3px,rgba(120,120,120,.35) 6px)"></div></div></div>
+        <div class="st"><div class="st-cap">? inconnu</div><div style="width:60px;height:12px;border-radius:6px;border:1px dashed #3a404d;display:flex;align-items:center;justify-content:center;font:700 7px var(--mono);color:#828d9e">?</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- H2 : CUVES VERTICALES -->
+  <!-- ==================================================================== -->
+  <section class="hyp">
+    <div class="hyp-head">
+      <span class="hyp-num">02</span>
+      <h2>Cuves verticales</h2>
+      <span class="tagline">« tanks » — deux cuves cote a cote, le liquide monte du bas</span>
+    </div>
+    <div class="hyp-body">
+      <div class="stage">
+        <div class="stage-col">
+          <div class="stage-lab">macOS sombre</div>
+          <div class="pop dark">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h2-wrap">
+                  <div class="h2-cell">
+                    <div class="h2-tank"><div class="h2-fill f-ok solid" style="height:73%"></div></div>
+                    <div class="h2-meta"><span class="gh-win">5h</span><span class="gv f-ok">73%</span><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                  <div class="h2-cell">
+                    <div class="h2-tank"><div class="h2-fill f-mid solid" style="height:41%"></div></div>
+                    <div class="h2-meta"><span class="gh-win">7j</span><span class="gv f-mid">41%</span><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h2-wrap">
+                  <div class="h2-cell">
+                    <div class="h2-tank"><div class="h2-fill f-low hatch" style="height:14%"></div></div>
+                    <div class="h2-meta"><span class="gh-win">5h</span><span class="gv f-low">~14%</span><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></div>
+                  </div>
+                  <div class="h2-cell">
+                    <div class="h2-tank none"><div class="h2-q">?</div></div>
+                    <div class="h2-meta"><span class="gh-win">7j</span><span class="gv gv-none">?</span><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-col">
+          <div class="stage-lab">macOS clair</div>
+          <div class="pop light">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h2-wrap">
+                  <div class="h2-cell">
+                    <div class="h2-tank"><div class="h2-fill f-ok solid" style="height:73%"></div></div>
+                    <div class="h2-meta"><span class="gh-win">5h</span><span class="gv f-ok">73%</span><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                  <div class="h2-cell">
+                    <div class="h2-tank"><div class="h2-fill f-mid solid" style="height:41%"></div></div>
+                    <div class="h2-meta"><span class="gh-win">7j</span><span class="gv f-mid">41%</span><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h2-wrap">
+                  <div class="h2-cell">
+                    <div class="h2-tank"><div class="h2-fill f-low hatch" style="height:14%"></div></div>
+                    <div class="h2-meta"><span class="gh-win">5h</span><span class="gv f-low">~14%</span><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></div>
+                  </div>
+                  <div class="h2-cell">
+                    <div class="h2-tank none"><div class="h2-q">?</div></div>
+                    <div class="h2-meta"><span class="gh-win">7j</span><span class="gv gv-none">?</span><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h4>L'idee</h4>
+        <ul>
+          <li>La metaphore la plus <b>litterale</b> du reservoir : deux cuves qui se vident par le haut. Le liquide (avec son menisque clair) descend, la teinte vire au rouge en bas.</li>
+          <li><b>Force :</b> tres <b>evocateur</b> et memorable, la hauteur code le niveau de facon intuitive. La cuve <code>none</code> reste une forme pleine (vide + « ? ») donc la metaphore encaisse l'incertitude.</li>
+          <li><b>Limite :</b> vertical = <b>gourmand en hauteur</b> ; au-dela de 3-4 comptes le popover s'allonge. Chiffres et rebours passent sous la cuve (moins compact que H1).</li>
+        </ul>
+        <div class="kv"><span>2 fenetres <b class="ok">✓</b></span><span>4 etats <b class="ok">✓</b></span><span>SVG <b class="ok">aucun</b></span><span>memorabilite <b class="ok">A+</b></span></div>
+      </div>
+    </div>
+    <div class="states-wrap">
+      <div class="states-cap">Les 4 etats de confiance dans cette forme</div>
+      <div class="states st-box">
+        <div class="st"><div class="st-cap">official ✓</div><div style="width:34px;height:44px;border:2px solid #3a404d;border-radius:7px;background:#12161e;position:relative;overflow:hidden"><div style="position:absolute;left:0;right:0;bottom:0;height:73%;background:#37c98c"></div></div></div>
+        <div class="st"><div class="st-cap">perime ⟳</div><div style="width:34px;height:44px;border:2px solid #3a404d;border-radius:7px;background:#12161e;position:relative;overflow:hidden"><div style="position:absolute;left:0;right:0;bottom:0;height:60%;background:#e3a83c;opacity:.4;filter:saturate(.5)"></div></div></div>
+        <div class="st"><div class="st-cap">~estime</div><div style="width:34px;height:44px;border:2px solid #3a404d;border-radius:7px;background:#12161e;position:relative;overflow:hidden"><div style="position:absolute;left:0;right:0;bottom:0;height:30%;background:repeating-linear-gradient(45deg,#f2564b,#f2564b 3px,rgba(120,120,120,.35) 3px,rgba(120,120,120,.35) 6px)"></div></div></div>
+        <div class="st"><div class="st-cap">? inconnu</div><div style="width:34px;height:44px;border:2px dashed #3a404d;border-radius:7px;display:flex;align-items:center;justify-content:center;font:800 15px var(--mono);color:#828d9e">?</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- H3 : BATTERIE SEGMENTEE -->
+  <!-- ==================================================================== -->
+  <section class="hyp">
+    <div class="hyp-head">
+      <span class="hyp-num">03</span>
+      <h2>Batterie segmentee</h2>
+      <span class="tagline">« pips » — dix segments qui s'eteignent, langage universel</span>
+    </div>
+    <div class="hyp-body">
+      <div class="stage">
+        <div class="stage-col">
+          <div class="stage-lab">macOS sombre</div>
+          <div class="pop dark">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-ok">73%</span></span><span class="gh-r"><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h3-batt"><div class="h3-body f-ok">
+                    <span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span>
+                  </div><span class="h3-cap"></span></div>
+                </div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv f-mid">41%</span></span><span class="gh-r"><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h3-batt"><div class="h3-body f-mid">
+                    <span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span>
+                  </div><span class="h3-cap"></span></div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-low">~14%</span></span><span class="gh-r"><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></span></div>
+                  <div class="h3-batt"><div class="h3-body f-low">
+                    <span class="h3-cell hatch"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span>
+                  </div><span class="h3-cap"></span></div>
+                </div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv gv-none">?</span></span><span class="gh-r"><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></span></div>
+                  <div class="h3-batt"><div class="h3-none">? inconnu</div><span class="h3-cap"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-col">
+          <div class="stage-lab">macOS clair</div>
+          <div class="pop light">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-ok">73%</span></span><span class="gh-r"><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h3-batt"><div class="h3-body f-ok">
+                    <span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span>
+                  </div><span class="h3-cap"></span></div>
+                </div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv f-mid">41%</span></span><span class="gh-r"><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></span></div>
+                  <div class="h3-batt"><div class="h3-body f-mid">
+                    <span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell solid"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span>
+                  </div><span class="h3-cap"></span></div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">5h</span><span class="gv f-low">~14%</span></span><span class="gh-r"><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></span></div>
+                  <div class="h3-batt"><div class="h3-body f-low">
+                    <span class="h3-cell hatch"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span><span class="h3-cell off"></span>
+                  </div><span class="h3-cap"></span></div>
+                </div>
+                <div class="h3-row">
+                  <div class="gh"><span class="gh-l"><span class="gh-win">7j</span><span class="gv gv-none">?</span></span><span class="gh-r"><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></span></div>
+                  <div class="h3-batt"><div class="h3-none">? inconnu</div><span class="h3-cap"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h4>L'idee</h4>
+        <ul>
+          <li>Un langage que <b>tout le monde connait</b> (batterie de telephone). Le nombre de segments allumes = le niveau ; ils s'eteignent un a un. La quantification par pas de 10% aide a « sentir » sans lire.</li>
+          <li><b>Force :</b> excellent en <b>petit</b> (favicon-friendly), granularite visible, l'etat <code>~estime</code> se rend par des segments <b>hachures</b> et <code>none</code> par des cases vides + « ? » — chaque etat a une texture propre.</li>
+          <li><b>Limite :</b> la segmentation <b>quantifie</b> (73% et 69% tombent sur 7 pips) ; moins fin qu'une barre continue. Horizontal donc compact, comme H1.</li>
+        </ul>
+        <div class="kv"><span>2 fenetres <b class="ok">✓</b></span><span>4 etats <b class="ok">✓</b></span><span>SVG <b class="ok">aucun</b></span><span>petit format <b class="ok">A+</b></span></div>
+      </div>
+    </div>
+    <div class="states-wrap">
+      <div class="states-cap">Les 4 etats de confiance dans cette forme</div>
+      <div class="states st-box">
+        <div class="st"><div class="st-cap">official ✓</div><div style="display:flex;gap:2px;padding:2px;border:1.5px solid #3a404d;border-radius:4px;background:#12161e;width:62px"><span style="flex:1;height:11px;border-radius:1px;background:#37c98c"></span><span style="flex:1;height:11px;border-radius:1px;background:#37c98c"></span><span style="flex:1;height:11px;border-radius:1px;background:#37c98c"></span><span style="flex:1;height:11px;border-radius:1px;background:#37c98c"></span><span style="flex:1;height:11px;border-radius:1px;box-shadow:inset 0 0 0 1px #3a404d"></span></div></div>
+        <div class="st"><div class="st-cap">perime ⟳</div><div style="display:flex;gap:2px;padding:2px;border:1.5px solid #3a404d;border-radius:4px;background:#12161e;width:62px;opacity:.5"><span style="flex:1;height:11px;border-radius:1px;background:#e3a83c"></span><span style="flex:1;height:11px;border-radius:1px;background:#e3a83c"></span><span style="flex:1;height:11px;border-radius:1px;background:#e3a83c"></span><span style="flex:1;height:11px;border-radius:1px;box-shadow:inset 0 0 0 1px #3a404d"></span><span style="flex:1;height:11px;border-radius:1px;box-shadow:inset 0 0 0 1px #3a404d"></span></div></div>
+        <div class="st"><div class="st-cap">~estime</div><div style="display:flex;gap:2px;padding:2px;border:1.5px solid #3a404d;border-radius:4px;background:#12161e;width:62px"><span style="flex:1;height:11px;border-radius:1px;background:repeating-linear-gradient(45deg,#f2564b,#f2564b 2px,rgba(120,120,120,.35) 2px,rgba(120,120,120,.35) 4px)"></span><span style="flex:1;height:11px;border-radius:1px;box-shadow:inset 0 0 0 1px #3a404d"></span><span style="flex:1;height:11px;border-radius:1px;box-shadow:inset 0 0 0 1px #3a404d"></span><span style="flex:1;height:11px;border-radius:1px;box-shadow:inset 0 0 0 1px #3a404d"></span><span style="flex:1;height:11px;border-radius:1px;box-shadow:inset 0 0 0 1px #3a404d"></span></div></div>
+        <div class="st"><div class="st-cap">? inconnu</div><div style="width:62px;height:19px;border:1.5px dashed #3a404d;border-radius:4px;display:flex;align-items:center;justify-content:center;font:700 8px var(--mono);color:#828d9e">?</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- H4 : DOUBLE ANNEAU -->
+  <!-- ==================================================================== -->
+  <section class="hyp">
+    <div class="hyp-head">
+      <span class="hyp-num">04</span>
+      <h2>Double anneau</h2>
+      <span class="tagline">« dual-arc » — deux arcs concentriques, les 2 fenetres en un seul cadran</span>
+    </div>
+    <div class="hyp-body">
+      <div class="stage">
+        <div class="stage-col">
+          <div class="stage-lab">macOS sombre</div>
+          <div class="pop dark">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h4-flex">
+                  <svg class="svg-arc" width="104" height="104" viewBox="0 0 120 120" aria-hidden="true">
+                    <g transform="rotate(135 60 60)" fill="none" stroke-linecap="round">
+                      <circle cx="60" cy="60" r="46" stroke="#12161e" stroke-width="9" stroke-dasharray="216.8 72.3"/>
+                      <circle cx="60" cy="60" r="34" stroke="#12161e" stroke-width="9" stroke-dasharray="160.2 53.4"/>
+                      <circle cx="60" cy="60" r="46" stroke="#37c98c" stroke-width="9" stroke-dasharray="158.2 289"/>
+                      <circle cx="60" cy="60" r="34" stroke="#e3a83c" stroke-width="9" stroke-dasharray="65.7 214"/>
+                    </g>
+                    <text x="60" y="55" text-anchor="middle" fill="#98a1b2" font-family="ui-monospace,monospace" font-size="9" font-weight="700">5h·7j</text>
+                    <text x="60" y="71" text-anchor="middle" fill="#e8ebf1" font-family="ui-monospace,monospace" font-size="9" font-weight="700">restant</text>
+                  </svg>
+                  <div class="arc-legend">
+                    <div class="arc-leg"><span class="sw" style="background:#37c98c"></span><span class="w">5h</span><span class="v f-ok">73%</span></div>
+                    <div class="arc-leg"><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                    <div class="arc-leg" style="margin-top:4px"><span class="sw" style="background:#e3a83c"></span><span class="w">7j</span><span class="v f-mid">41%</span></div>
+                    <div class="arc-leg"><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h4-flex">
+                  <svg class="svg-arc" width="104" height="104" viewBox="0 0 120 120" aria-hidden="true">
+                    <defs><pattern id="hd4" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><rect width="6" height="6" fill="#f2564b"/><rect width="3" height="6" fill="#20242d"/></pattern></defs>
+                    <g transform="rotate(135 60 60)" fill="none" stroke-linecap="round">
+                      <circle cx="60" cy="60" r="46" stroke="#12161e" stroke-width="9" stroke-dasharray="216.8 72.3"/>
+                      <circle cx="60" cy="60" r="34" stroke="#12161e" stroke-width="9" stroke-dasharray="160.2 53.4" stroke-dasharray="2 6"/>
+                      <circle cx="60" cy="60" r="46" stroke="url(#hd4)" stroke-width="9" stroke-dasharray="30.3 289"/>
+                    </g>
+                    <text x="60" y="63" text-anchor="middle" fill="#828d9e" font-family="ui-monospace,monospace" font-size="20" font-weight="800">?</text>
+                  </svg>
+                  <div class="arc-legend">
+                    <div class="arc-leg"><span class="sw" style="background:#f2564b"></span><span class="w">5h</span><span class="v f-low">~14%</span></div>
+                    <div class="arc-leg"><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></div>
+                    <div class="arc-leg" style="margin-top:4px"><span class="sw" style="background:#3a404d"></span><span class="w">7j</span><span class="v gv-none">?</span></div>
+                    <div class="arc-leg"><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-col">
+          <div class="stage-lab">macOS clair</div>
+          <div class="pop light">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h4-flex">
+                  <svg class="svg-arc" width="104" height="104" viewBox="0 0 120 120" aria-hidden="true">
+                    <g transform="rotate(135 60 60)" fill="none" stroke-linecap="round">
+                      <circle cx="60" cy="60" r="46" stroke="#e4e4e9" stroke-width="9" stroke-dasharray="216.8 72.3"/>
+                      <circle cx="60" cy="60" r="34" stroke="#e4e4e9" stroke-width="9" stroke-dasharray="160.2 53.4"/>
+                      <circle cx="60" cy="60" r="46" stroke="#1f9d63" stroke-width="9" stroke-dasharray="158.2 289"/>
+                      <circle cx="60" cy="60" r="34" stroke="#b9781a" stroke-width="9" stroke-dasharray="65.7 214"/>
+                    </g>
+                    <text x="60" y="55" text-anchor="middle" fill="#6e6e73" font-family="ui-monospace,monospace" font-size="9" font-weight="700">5h·7j</text>
+                    <text x="60" y="71" text-anchor="middle" fill="#1d1d1f" font-family="ui-monospace,monospace" font-size="9" font-weight="700">restant</text>
+                  </svg>
+                  <div class="arc-legend">
+                    <div class="arc-leg"><span class="sw" style="background:#1f9d63"></span><span class="w">5h</span><span class="v f-ok">73%</span></div>
+                    <div class="arc-leg"><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                    <div class="arc-leg" style="margin-top:4px"><span class="sw" style="background:#b9781a"></span><span class="w">7j</span><span class="v f-mid">41%</span></div>
+                    <div class="arc-leg"><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h4-flex">
+                  <svg class="svg-arc" width="104" height="104" viewBox="0 0 120 120" aria-hidden="true">
+                    <defs><pattern id="hd4l" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><rect width="6" height="6" fill="#d63a2f"/><rect width="3" height="6" fill="#ffffff"/></pattern></defs>
+                    <g transform="rotate(135 60 60)" fill="none" stroke-linecap="round">
+                      <circle cx="60" cy="60" r="46" stroke="#e4e4e9" stroke-width="9" stroke-dasharray="216.8 72.3"/>
+                      <circle cx="60" cy="60" r="34" stroke="#e4e4e9" stroke-width="9" stroke-dasharray="2 6"/>
+                      <circle cx="60" cy="60" r="46" stroke="url(#hd4l)" stroke-width="9" stroke-dasharray="30.3 289"/>
+                    </g>
+                    <text x="60" y="63" text-anchor="middle" fill="#7a7a80" font-family="ui-monospace,monospace" font-size="20" font-weight="800">?</text>
+                  </svg>
+                  <div class="arc-legend">
+                    <div class="arc-leg"><span class="sw" style="background:#d63a2f"></span><span class="w">5h</span><span class="v f-low">~14%</span></div>
+                    <div class="arc-leg"><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></div>
+                    <div class="arc-leg" style="margin-top:4px"><span class="sw" style="background:#d4d4da"></span><span class="w">7j</span><span class="v gv-none">?</span></div>
+                    <div class="arc-leg"><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h4>L'idee</h4>
+        <ul>
+          <li>Les <b>deux fenetres dans un seul cadran</b> : arc exterieur = 5h, arc interieur = 7j. Cadran ouvert en bas (270°), tres compact horizontalement.</li>
+          <li><b>Force :</b> le plus <b>dense</b> et le plus « produit » ; deux quotas lus d'un regard sans empiler des lignes. Chaque compte tient sur une carte courte.</li>
+          <li><b>Limite :</b> demande du <b>SVG</b> (arcs en stroke-dasharray) ; ne rentre pas en favicon 16px (2 arcs illisibles si minuscule). L'incertitude passe par hachure (estime) et « ? » central (none).</li>
+        </ul>
+        <div class="kv"><span>2 fenetres <b class="ok">✓</b></span><span>4 etats <b class="ok">✓</b></span><span>SVG <b class="mid">requis</b></span><span>densite <b class="ok">A+</b></span></div>
+      </div>
+    </div>
+    <div class="states-wrap">
+      <div class="states-cap">Les 4 etats de confiance (arc exterieur)</div>
+      <div class="states st-box">
+        <div class="st"><div class="st-cap">official ✓</div>
+          <svg width="56" height="56" viewBox="0 0 60 60"><g transform="rotate(135 30 30)" fill="none" stroke-linecap="round"><circle cx="30" cy="30" r="22" stroke="#12161e" stroke-width="7" stroke-dasharray="103.7 34.6"/><circle cx="30" cy="30" r="22" stroke="#37c98c" stroke-width="7" stroke-dasharray="75.7 138"/></g></svg>
+        </div>
+        <div class="st"><div class="st-cap">perime ⟳</div>
+          <svg width="56" height="56" viewBox="0 0 60 60" style="opacity:.45;filter:saturate(.5)"><g transform="rotate(135 30 30)" fill="none" stroke-linecap="round"><circle cx="30" cy="30" r="22" stroke="#12161e" stroke-width="7" stroke-dasharray="103.7 34.6"/><circle cx="30" cy="30" r="22" stroke="#e3a83c" stroke-width="7" stroke-dasharray="60.1 138"/></g></svg>
+        </div>
+        <div class="st"><div class="st-cap">~estime</div>
+          <svg width="56" height="56" viewBox="0 0 60 60"><defs><pattern id="hdm" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><rect width="5" height="5" fill="#f2564b"/><rect width="2.5" height="5" fill="#22262f"/></pattern></defs><g transform="rotate(135 30 30)" fill="none" stroke-linecap="round"><circle cx="30" cy="30" r="22" stroke="#12161e" stroke-width="7" stroke-dasharray="103.7 34.6"/><circle cx="30" cy="30" r="22" stroke="url(#hdm)" stroke-width="7" stroke-dasharray="31.1 138"/></g></svg>
+        </div>
+        <div class="st"><div class="st-cap">? inconnu</div>
+          <svg width="56" height="56" viewBox="0 0 60 60"><g transform="rotate(135 30 30)" fill="none" stroke-linecap="round"><circle cx="30" cy="30" r="22" stroke="#12161e" stroke-width="7" stroke-dasharray="2 5" stroke-opacity=".6"/></g><text x="30" y="36" text-anchor="middle" fill="#828d9e" font-family="ui-monospace,monospace" font-size="16" font-weight="800">?</text></svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- H5 : JAUGE A AIGUILLE -->
+  <!-- ==================================================================== -->
+  <section class="hyp">
+    <div class="hyp-head">
+      <span class="hyp-num">05</span>
+      <h2>Jauge a aiguille</h2>
+      <span class="tagline">« fuel gauge » — le cadran carburant E→F, aiguille sur le niveau</span>
+    </div>
+    <div class="hyp-body">
+      <div class="stage">
+        <div class="stage-col">
+          <div class="stage-lab">macOS sombre</div>
+          <div class="pop dark">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h5-wrap">
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <defs><linearGradient id="fg-d" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f2564b"/><stop offset="0.5" stop-color="#e3a83c"/><stop offset="1" stop-color="#37c98c"/></linearGradient></defs>
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="url(#fg-d)" stroke-width="8" stroke-linecap="round"/>
+                      <text x="17" y="58" fill="#98a1b2" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#98a1b2" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <g transform="rotate(27.6 60 66)"><line x1="60" y1="66" x2="60" y2="28" stroke="#37c98c" stroke-width="3" stroke-linecap="round"/></g>
+                      <circle cx="60" cy="66" r="4.5" fill="#37c98c"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">5h</span><span class="gv f-ok">73%</span><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="url(#fg-d)" stroke-width="8" stroke-linecap="round"/>
+                      <text x="17" y="58" fill="#98a1b2" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#98a1b2" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <g transform="rotate(-10.8 60 66)"><line x1="60" y1="66" x2="60" y2="28" stroke="#e3a83c" stroke-width="3" stroke-linecap="round"/></g>
+                      <circle cx="60" cy="66" r="4.5" fill="#e3a83c"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">7j</span><span class="gv f-mid">41%</span><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h5-wrap">
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="url(#fg-d)" stroke-width="8" stroke-linecap="round" opacity=".55"/>
+                      <text x="17" y="58" fill="#98a1b2" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#98a1b2" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <g transform="rotate(-43.2 60 66)"><line x1="60" y1="66" x2="60" y2="28" stroke="#f2564b" stroke-width="3" stroke-linecap="round" stroke-dasharray="3 3"/></g>
+                      <circle cx="60" cy="66" r="4.5" fill="none" stroke="#f2564b" stroke-width="2"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">5h</span><span class="gv f-low">~14%</span><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></div>
+                  </div>
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="#3a404d" stroke-width="8" stroke-linecap="round"/>
+                      <text x="17" y="58" fill="#828d9e" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#828d9e" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <text x="60" y="40" text-anchor="middle" fill="#828d9e" font-family="ui-monospace,monospace" font-size="17" font-weight="800">?</text>
+                      <circle cx="60" cy="66" r="4.5" fill="#3a404d"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">7j</span><span class="gv gv-none">?</span><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-col">
+          <div class="stage-lab">macOS clair</div>
+          <div class="pop light">
+            <div class="pop-top"><span class="pop-brand"><span class="k">●</span> iakaToken</span><span class="pop-dot"></span></div>
+            <div class="pop-body">
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">claude <span class="plan">/ max</span></span><span class="acard-tier">official</span></div>
+                <div class="h5-wrap">
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <defs><linearGradient id="fg-l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#d63a2f"/><stop offset="0.5" stop-color="#b9781a"/><stop offset="1" stop-color="#1f9d63"/></linearGradient></defs>
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="url(#fg-l)" stroke-width="8" stroke-linecap="round"/>
+                      <text x="17" y="58" fill="#6e6e73" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#6e6e73" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <g transform="rotate(27.6 60 66)"><line x1="60" y1="66" x2="60" y2="28" stroke="#1f9d63" stroke-width="3" stroke-linecap="round"/></g>
+                      <circle cx="60" cy="66" r="4.5" fill="#1f9d63"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">5h</span><span class="gv f-ok">73%</span><span class="cd">↺ 2h</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="url(#fg-l)" stroke-width="8" stroke-linecap="round"/>
+                      <text x="17" y="58" fill="#6e6e73" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#6e6e73" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <g transform="rotate(-10.8 60 66)"><line x1="60" y1="66" x2="60" y2="28" stroke="#b9781a" stroke-width="3" stroke-linecap="round"/></g>
+                      <circle cx="60" cy="66" r="4.5" fill="#b9781a"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">7j</span><span class="gv f-mid">41%</span><span class="cd">↺ 4j</span><span class="conf conf-official"><i>✓</i>official</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="acard">
+                <div class="acard-head"><span class="acard-name">codex <span class="plan">/ plus</span></span><span class="acard-tier">degrade</span></div>
+                <div class="h5-wrap">
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="url(#fg-l)" stroke-width="8" stroke-linecap="round" opacity=".5"/>
+                      <text x="17" y="58" fill="#6e6e73" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#6e6e73" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <g transform="rotate(-43.2 60 66)"><line x1="60" y1="66" x2="60" y2="28" stroke="#d63a2f" stroke-width="3" stroke-linecap="round" stroke-dasharray="3 3"/></g>
+                      <circle cx="60" cy="66" r="4.5" fill="none" stroke="#d63a2f" stroke-width="2"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">5h</span><span class="gv f-low">~14%</span><span class="cd">↺ ~1h</span><span class="conf conf-estimate"><i>~</i>estime</span></div>
+                  </div>
+                  <div class="h5-cell">
+                    <svg width="128" height="74" viewBox="0 0 120 76" aria-hidden="true">
+                      <path d="M21.9 44 A44 44 0 0 1 98.1 44" fill="none" stroke="#d4d4da" stroke-width="8" stroke-linecap="round"/>
+                      <text x="17" y="58" fill="#7a7a80" font-family="ui-monospace,monospace" font-size="10" font-weight="700">E</text>
+                      <text x="97" y="58" fill="#7a7a80" font-family="ui-monospace,monospace" font-size="10" font-weight="700">F</text>
+                      <text x="60" y="40" text-anchor="middle" fill="#7a7a80" font-family="ui-monospace,monospace" font-size="17" font-weight="800">?</text>
+                      <circle cx="60" cy="66" r="4.5" fill="#d4d4da"/>
+                    </svg>
+                    <div class="h5-meta"><span class="gh-win">7j</span><span class="gv gv-none">?</span><span class="cd">↺ —</span><span class="conf conf-none"><i>?</i>inconnu</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h4>L'idee</h4>
+        <ul>
+          <li>Le cadran <b>carburant</b> de tableau de bord : un arc E→F colore (rouge a gauche, vert a droite) et une aiguille qui pointe le niveau restant. La metaphore « reservoir » la plus explicite.</li>
+          <li><b>Force :</b> tres <b>parlant</b> et charmant, l'arc code deja l'alerte independamment de l'aiguille. L'incertitude se dit par aiguille <b>pointillee/creuse</b> (estime) ou grisee (none).</li>
+          <li><b>Limite :</b> <b>encombrant</b> (deux cadrans par carte), moins precis a lire qu'un chiffre, et illisible en favicon. Le plus « gadget » — a reserver si l'effet waouh prime.</li>
+        </ul>
+        <div class="kv"><span>2 fenetres <b class="ok">✓</b></span><span>4 etats <b class="ok">✓</b></span><span>SVG <b class="mid">requis</b></span><span>effet waouh <b class="ok">A+</b></span></div>
+      </div>
+    </div>
+    <div class="states-wrap">
+      <div class="states-cap">Les 4 etats de confiance dans cette forme</div>
+      <div class="states st-box">
+        <div class="st"><div class="st-cap">official ✓</div>
+          <svg width="60" height="40" viewBox="0 0 60 42"><defs><linearGradient id="fgs" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f2564b"/><stop offset=".5" stop-color="#e3a83c"/><stop offset="1" stop-color="#37c98c"/></linearGradient></defs><path d="M10.2 22 A22 22 0 0 1 49.8 22" fill="none" stroke="url(#fgs)" stroke-width="5" stroke-linecap="round"/><g transform="rotate(27.6 30 33)"><line x1="30" y1="33" x2="30" y2="14" stroke="#37c98c" stroke-width="2.5" stroke-linecap="round"/></g><circle cx="30" cy="33" r="3" fill="#37c98c"/></svg>
+        </div>
+        <div class="st"><div class="st-cap">perime ⟳</div>
+          <svg width="60" height="40" viewBox="0 0 60 42" style="opacity:.5;filter:saturate(.5)"><path d="M10.2 22 A22 22 0 0 1 49.8 22" fill="none" stroke="url(#fgs)" stroke-width="5" stroke-linecap="round"/><g transform="rotate(9.6 30 33)"><line x1="30" y1="33" x2="30" y2="14" stroke="#e3a83c" stroke-width="2.5" stroke-linecap="round"/></g><circle cx="30" cy="33" r="3" fill="#e3a83c"/></svg>
+        </div>
+        <div class="st"><div class="st-cap">~estime</div>
+          <svg width="60" height="40" viewBox="0 0 60 42"><path d="M10.2 22 A22 22 0 0 1 49.8 22" fill="none" stroke="url(#fgs)" stroke-width="5" stroke-linecap="round" opacity=".55"/><g transform="rotate(-24 30 33)"><line x1="30" y1="33" x2="30" y2="14" stroke="#f2564b" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2.5 2.5"/></g><circle cx="30" cy="33" r="3" fill="none" stroke="#f2564b" stroke-width="1.6"/></svg>
+        </div>
+        <div class="st"><div class="st-cap">? inconnu</div>
+          <svg width="60" height="40" viewBox="0 0 60 42"><path d="M10.2 22 A22 22 0 0 1 49.8 22" fill="none" stroke="#3a404d" stroke-width="5" stroke-linecap="round"/><text x="30" y="22" text-anchor="middle" fill="#828d9e" font-family="ui-monospace,monospace" font-size="12" font-weight="800">?</text><circle cx="30" cy="33" r="3" fill="#3a404d"/></svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    <div class="line"></div>
+    <p>iakaTokenCounter · 5 hypotheses de reservoir pour la carte de compte du popover tray.</p>
+    <p>Loki — direction artistique · design Cinabre (gris/noir/blanc + rouge cinabre) · maquette a valider par le decideur.</p>
+  </div>
+
+</main>
+</body>
+</html>
