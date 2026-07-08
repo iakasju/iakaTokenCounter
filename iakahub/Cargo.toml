@@ -1,0 +1,24 @@
+[package]
+name = "iakahub"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "iakahub v0 : broker MQTT local embarque (rumqttd, 127.0.0.1 anonyme) + orchestration/supervision du measure daemon iakatc-daemon. Backbone standalone du poste."
+
+[lib]
+name = "iakahub"
+path = "src/lib.rs"
+
+[[bin]]
+name = "iakahub"
+path = "src/main.rs"
+
+[dependencies]
+rumqttd = "0.19"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+ctrlc = { version = "3", features = ["termination"] }
+
+[dev-dependencies]
+rumqttc = "0.24"

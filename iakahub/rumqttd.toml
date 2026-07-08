@@ -1,0 +1,23 @@
+# Gabarit de configuration rumqttd embarque dans iakahub (include_str!).
+# Un SEUL listener MQTT v4 (3.1.1), en 127.0.0.1, anonyme (aucune section `auth`).
+# La ligne `listen` porte le placeholder __IAKAHUB_LISTEN__, substitue au demarrage par
+# `127.0.0.1:<port>` (port defaut 1883, via IAKATC_MQTT_PORT). Pas de v5, pas de WebSocket,
+# pas de console/prometheus : hors scope MVP (voir specs/instructions/feature-iakahub.md).
+id = 0
+
+[router]
+max_connections = 10010
+max_outgoing_packet_count = 200
+max_segment_size = 104857600
+max_segment_count = 10
+
+[v4.1]
+name = "iakahub-v4"
+listen = "__IAKAHUB_LISTEN__"
+next_connection_delay_ms = 1
+
+    [v4.1.connections]
+    connection_timeout_ms = 60000
+    max_payload_size = 20480
+    max_inflight_count = 100
+    dynamic_filters = true
