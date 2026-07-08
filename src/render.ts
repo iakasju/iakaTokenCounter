@@ -1,6 +1,10 @@
-// Rendu des cartes de reservoir dans la popover : deux jauges (5h / 7d) par compte,
-// mapping confiance -> style (D3.1), compte a rebours depuis `resetsAt`, etats degrades
-// (« inconnu » / « perime » / « broker deconnecte »). Aucune logique MQTT ici.
+// Rendu des cartes de reservoir dans la popover (D1) : hypothese 1 « barres horizontales »
+// (fuel bars). Par compte, une carte ; par fenetre (5h / 7j), une barre horizontale dont la
+// largeur = % restant, teintee par niveau, avec compte a rebours (`resetsAt`) + badge de
+// confiance. Repli 1 barre si le compte n'a qu'une fenetre. Aucune logique MQTT ici.
+//
+// Reference design : docs/design/popover-reservoir-hypotheses.html (H1). Les teintes suivent la
+// meme palette carburant que l'icone de tray (ok ≥50 / moyen 20–49 / alerte <20).
 
 import type {
   Confidence,
@@ -11,7 +15,7 @@ import type {
 
 // Seuils de fraicheur locaux (s) : au-dela, la derniere valeur connue est marquee « perimee ».
 // Alignes sur les defauts du daemon (config.json : 1200 / 21600). Exportes pour la vue analytics
-// qui reutilise la meme jauge en tete (quota courant du compte).
+// qui reutilise la meme barre en tete (quota courant du compte).
 export const FRESHNESS_5H = 1200;
 export const FRESHNESS_7D = 21600;
 
@@ -28,12 +32,24 @@ function nowS(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+/** Une fenetre a recu de la donnee des qu'elle a un horodatage de fraicheur. Sert au repli. */
+function hasWindow(w: WindowState): boolean {
+  return w.updatedAt !== null;
+}
+
 /** Une fenetre est perimee si sa derniere valeur est trop vieille ou si la recharge est passee. */
 function isStale(w: WindowState, freshness: number): boolean {
   const now = nowS();
   if (w.updatedAt !== null && now - w.updatedAt > freshness) return true;
   if (w.resetsAt !== null && now > w.resetsAt) return true;
   return false;
+}
+
+/** Niveau de remplissage → classe de teinte (memes seuils que l'icone : ≥50 / 20–49 / <20). */
+function levelClass(pct: number): "f-ok" | "f-mid" | "f-low" {
+  if (pct >= 50) return "f-ok";
+  if (pct >= 20) return "f-mid";
+  return "f-low";
 }
 
 /** Compte a rebours humain depuis un epoch de recharge. */
@@ -51,86 +67,125 @@ function countdown(resetsAt: number | null): string {
   return `${m}m`;
 }
 
-/** Style de jauge selon la confiance (D3.1). Retourne classe CSS + prefixe de valeur. */
+/** Style de confiance (D3.1) : classe CSS, prefixe de valeur, glyphe et libelle du badge. */
 function confidenceStyle(c: Confidence | null): {
   cls: string;
   prefix: string;
+  glyph: string;
   badge: string;
 } {
   switch (c) {
     case "official":
-      return { cls: "conf-official", prefix: "", badge: "officiel" };
+      return { cls: "conf-official", prefix: "", glyph: "✓", badge: "officiel" };
     case "official_stale":
-      return { cls: "conf-stale", prefix: "", badge: "⏱ date" };
+      return { cls: "conf-stale", prefix: "", glyph: "⟳", badge: "date" };
     case "local_estimate":
-      return { cls: "conf-estimate", prefix: "~", badge: "estime" };
+      return { cls: "conf-estimate", prefix: "~", glyph: "~", badge: "estime" };
     case "none":
     default:
-      return { cls: "conf-none", prefix: "", badge: "inconnu" };
+      return { cls: "conf-none", prefix: "", glyph: "?", badge: "inconnu" };
   }
 }
 
-/** Rend une jauge de quota (reutilisee par la popover ET l'en-tete analytics). */
+/**
+ * Rend une **barre de reservoir horizontale** (une fenetre) : entete (fenetre + valeur a gauche,
+ * countdown + badge de confiance a droite) puis la piste avec son remplissage. Reutilisee par la
+ * popover ET l'en-tete de la vue analytics. Le nom `gauge` est conserve pour cette derniere.
+ */
 export function gauge(title: string, w: WindowState, freshness: number): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "gauge";
+  const row = document.createElement("div");
+  row.className = "h1-row";
 
   const style = confidenceStyle(w.confidence);
   const unknown = w.remainingPct === null || w.confidence === "none";
   const stale = !unknown && isStale(w, freshness);
-
-  const head = document.createElement("div");
-  head.className = "gauge-head";
-  const label = document.createElement("span");
-  label.className = "gauge-title";
-  label.textContent = title;
-  const badge = document.createElement("span");
-  badge.className = `conf-badge ${style.cls}`;
-  badge.textContent = stale ? "⏱ perime" : style.badge;
-  head.append(label, badge);
-
-  const bar = document.createElement("div");
-  bar.className = `bar ${style.cls}${unknown ? " unknown" : ""}${stale ? " stale" : ""}`;
-  const fill = document.createElement("div");
-  fill.className = "bar-fill";
   const pct = w.remainingPct;
-  fill.style.width = unknown || pct === null ? "0%" : `${Math.max(0, Math.min(100, pct))}%`;
-  bar.appendChild(fill);
+  const clamped = pct === null ? 0 : Math.max(0, Math.min(100, pct));
+  const lvl = unknown || pct === null ? "f-none" : levelClass(clamped);
 
-  const value = document.createElement("div");
-  value.className = "gauge-value";
-  if (unknown || pct === null) {
-    value.textContent = "?";
-  } else {
-    value.textContent = `${style.prefix}${pct.toFixed(1)} % restant`;
+  // Entete : fenetre + valeur (gauche) ; recharge + confiance (droite).
+  const head = document.createElement("div");
+  head.className = "gh";
+
+  const left = document.createElement("span");
+  left.className = "gh-l";
+  const win = document.createElement("span");
+  win.className = "gh-win";
+  win.textContent = title;
+  const value = document.createElement("span");
+  value.className = `gv ${unknown ? "gv-none" : lvl}`;
+  value.textContent =
+    unknown || pct === null ? "?" : `${style.prefix}${Math.round(clamped)}%`;
+  left.append(win, value);
+
+  const right = document.createElement("span");
+  right.className = "gh-r";
+  const cd = document.createElement("span");
+  cd.className = "cd";
+  cd.textContent = `↺ ${countdown(w.resetsAt)}`;
+  const badge = document.createElement("span");
+  badge.className = `conf ${stale ? "conf-stale" : style.cls}`;
+  const glyph = document.createElement("i");
+  glyph.textContent = stale ? "⟳" : style.glyph;
+  badge.append(glyph, document.createTextNode(stale ? "perime" : style.badge));
+  if (w.source) badge.title = `source : ${w.source}`;
+  right.append(cd, badge);
+
+  head.append(left, right);
+
+  // Piste + remplissage. Inconnu → piste pointillee vide (jamais de faux plein).
+  const track = document.createElement("div");
+  track.className = `h1-track${unknown ? " none" : ""}`;
+  if (!unknown) {
+    const fill = document.createElement("div");
+    const treat =
+      w.confidence === "local_estimate"
+        ? "hatch"
+        : stale
+          ? "attenuated"
+          : "solid";
+    fill.className = `h1-fill ${lvl} ${treat}`;
+    fill.style.width = `${clamped}%`;
+    track.appendChild(fill);
   }
 
-  const meta = document.createElement("div");
-  meta.className = "gauge-meta";
-  meta.textContent = `recharge : ${countdown(w.resetsAt)}`;
-  if (w.source) meta.title = `source : ${w.source}`;
-
-  wrap.append(head, bar, value, meta);
-  return wrap;
+  row.append(head, track);
+  return row;
 }
 
+/** Rend une carte de compte : entete + 1 barre (repli) ou 2 barres (5h / 7j). */
 function card(r: ReservoirCard): HTMLElement {
   const el = document.createElement("section");
-  el.className = "card";
+  el.className = "acard";
   el.title = "double-clic : analytics (a venir)";
 
+  // Fenetres presentes → repli 1 barre si une seule.
+  const windows: Array<[string, WindowState, number]> = [];
+  if (hasWindow(r.fiveH)) windows.push(["5h", r.fiveH, FRESHNESS_5H]);
+  if (hasWindow(r.sevenD)) windows.push(["7j", r.sevenD, FRESHNESS_7D]);
+  // Si aucune fenetre horodatee (cas limite), on montre quand meme les deux en « inconnu ».
+  if (windows.length === 0) {
+    windows.push(["5h", r.fiveH, FRESHNESS_5H], ["7j", r.sevenD, FRESHNESS_7D]);
+  }
+
   const header = document.createElement("header");
-  header.className = "card-head";
-  header.textContent = `${r.provider} / ${r.account}`;
+  header.className = "acard-head";
+  const name = document.createElement("span");
+  name.className = "acard-name";
+  name.textContent = r.provider;
+  const plan = document.createElement("span");
+  plan.className = "plan";
+  plan.textContent = `/ ${r.account}`;
+  name.appendChild(plan);
+  const tier = document.createElement("span");
+  tier.className = "acard-tier";
+  tier.textContent = windows.length > 1 ? "2 fenetres" : "1 fenetre";
+  header.append(name, tier);
   el.appendChild(header);
 
-  const gauges = document.createElement("div");
-  gauges.className = "gauges";
-  gauges.append(
-    gauge("5 h", r.fiveH, FRESHNESS_5H),
-    gauge("7 j", r.sevenD, FRESHNESS_7D),
-  );
-  el.appendChild(gauges);
+  for (const [title, w, freshness] of windows) {
+    el.appendChild(gauge(title, w, freshness));
+  }
 
   el.addEventListener("dblclick", () => onOpenAnalytics(r.provider, r.account));
   return el;

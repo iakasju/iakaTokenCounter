@@ -8,6 +8,11 @@
   --estimate: #4aa3ff;
   --none: #6b7280;
   --error: #ef4444;
+  /* Palette carburant alignee sur l'icone de tray (ok ≥50 / moyen 20–49 / alerte <20). */
+  --f-ok: #34c759;
+  --f-mid: #ff9f0a;
+  --f-low: #ff3b30;
+  --track: #11141a;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -78,44 +83,92 @@ body {
   padding: 24px 0;
 }
 
-.card {
+/* ====================== Carte de compte (popover H1 : barres horizontales) ============== */
+.acard {
   background: var(--panel);
   border-radius: 8px;
   padding: 10px 12px;
   cursor: default;
 }
 
-.card-head {
-  font-weight: 600;
+.acard-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   margin-bottom: 8px;
 }
-
-.gauges {
-  display: flex;
-  gap: 12px;
+.acard-name {
+  font-weight: 600;
 }
-
-.gauge {
-  flex: 1;
-  min-width: 0;
-}
-
-.gauge-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-.gauge-title {
+.acard-name .plan {
   color: var(--muted);
+  font-weight: 400;
+  margin-left: 4px;
+}
+.acard-tier {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Une barre-reservoir = entete (gh) + piste (h1-track). */
+.h1-row + .h1-row {
+  margin-top: 9px;
+}
+
+.gh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
   font-size: 11px;
 }
+.gh-l {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.gh-win {
+  color: var(--muted);
+}
+.gv {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.gv.f-ok {
+  color: var(--f-ok);
+}
+.gv.f-mid {
+  color: var(--f-mid);
+}
+.gv.f-low {
+  color: var(--f-low);
+}
+.gv.gv-none {
+  color: var(--none);
+}
 
-.conf-badge {
+.gh-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.cd {
+  font-variant-numeric: tabular-nums;
+}
+.conf {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 4px;
+}
+.conf i {
+  font-style: normal;
+  font-weight: 700;
 }
 .conf-official {
   color: var(--sure);
@@ -130,50 +183,64 @@ body {
   color: var(--none);
 }
 
-.bar {
-  height: 12px;
-  background: #11141a;
-  border-radius: 6px;
+/* Piste + remplissage. */
+.h1-track {
+  height: 14px;
+  border-radius: 7px;
+  background: var(--track);
   overflow: hidden;
+  position: relative;
 }
-
-.bar-fill {
+.h1-track.none {
+  background: transparent;
+  border: 1px dashed #3a404d;
+}
+.h1-track.none::after {
+  content: "inconnu";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 8.5px ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.05em;
+  color: var(--none);
+}
+.h1-fill {
   height: 100%;
+  border-radius: 7px;
   transition: width 0.3s ease;
 }
-.bar.conf-official .bar-fill {
-  background: var(--sure);
+.h1-fill.f-ok {
+  background: var(--f-ok);
 }
-.bar.conf-stale .bar-fill {
-  background: var(--stale);
+.h1-fill.f-mid {
+  background: var(--f-mid);
 }
-.bar.conf-estimate .bar-fill {
-  /* Hachure pour signaler l'estimation locale. */
-  background: repeating-linear-gradient(
+.h1-fill.f-low {
+  background: var(--f-low);
+}
+/* Estime : hachure 45° (meme teinte de niveau) — on voit que c'est approximatif. */
+.h1-fill.hatch {
+  background-image: repeating-linear-gradient(
     45deg,
-    var(--estimate),
-    var(--estimate) 4px,
-    #2c6bb0 4px,
-    #2c6bb0 8px
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0) 3px,
+    rgba(255, 255, 255, 0.45) 3px,
+    rgba(255, 255, 255, 0.45) 6px
   );
 }
-.bar.unknown,
-.bar.conf-none {
-  background: #2a2e37;
-}
-.bar.stale .bar-fill {
-  opacity: 0.5;
+/* Perime : remplissage attenue (grise/desature). */
+.h1-fill.attenuated {
+  opacity: 0.4;
+  filter: saturate(0.5);
 }
 
-.gauge-value {
-  margin-top: 4px;
-  font-weight: 600;
-}
-
-.gauge-meta {
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: 2px;
+/* Conteneur reutilise par l'en-tete analytics : empile les barres verticalement. */
+.gauges {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
 }
 
 /* ====================== Vue analytics (historique par provider) ====================== */
