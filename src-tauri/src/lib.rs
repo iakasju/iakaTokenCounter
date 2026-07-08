@@ -1,6 +1,7 @@
 //! GUI tray iakaTokenCounter (Tauri v2). Pur **subscriber** du contrat MQTT retained : le backend
-//! Rust tient l'etat, la webview rend. Assemble : tray (D4), subscriber (D2), spawn daemon sidecar
-//! (D1), hook analytics (D6), degradation hors-ligne (D5).
+//! Rust tient l'etat, la webview rend. Assemble : tray (D4), subscriber (D2), spawn du backbone
+//! `iakahub` en sidecar (D1 ; iakahub porte le broker MQTT local et le measure daemon voisin),
+//! hook analytics (D6), degradation hors-ligne (D5).
 
 mod analytics;
 mod config;
@@ -31,9 +32,10 @@ pub fn run() {
             let handle = app.handle().clone();
             tray::build_tray(&handle)?;
 
-            // D1 : spawn du daemon en sidecar, sauf IAKATC_SPAWN_DAEMON=false. Echec = pas de
-            // crash, juste `daemon_available=false` (banniere cote webview).
-            let available = spawn_daemon(&handle, &cfg);
+            // D1/iakahub : spawn du backbone iakahub en sidecar (il porte le broker MQTT local
+            // ET spawne le measure daemon a cote de lui), sauf IAKATC_SPAWN_DAEMON=false. Echec =
+            // pas de crash, juste `daemon_available=false` (banniere cote webview).
+            let available = spawn_backbone(&handle, &cfg);
             handle
                 .state::<AppState>()
                 .daemon_available
@@ -55,7 +57,8 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("erreur au build de l'app Tauri")
         .run(|app, event| {
-            // D1 (limite assumee) : le daemon sidecar s'arrete avec la GUI.
+            // iakahub (limite assumee) : le backbone sidecar s'arrete avec la GUI ; iakahub
+            // termine alors le measure daemon a cote de lui (arret en cascade, pas d'orphelin).
             if let RunEvent::Exit = event {
                 if let Some(child) = app.state::<AppState>().daemon_child.lock().unwrap().take() {
                     let _ = child.kill();
@@ -64,14 +67,15 @@ pub fn run() {
         });
 }
 
-/// Spawne le daemon `iakatc-daemon` en sidecar. Retourne `true` si le daemon est repute
-/// disponible (spawn OK, ou spawn desactive volontairement => suppose un daemon externe).
-fn spawn_daemon(app: &tauri::AppHandle, cfg: &config::TrayConfig) -> bool {
+/// Spawne le backbone `iakahub` en sidecar (broker MQTT local + orchestration du measure daemon
+/// voisin). Retourne `true` si le backbone est repute disponible (spawn OK, ou spawn desactive
+/// volontairement => suppose un iakahub gere par le systeme).
+fn spawn_backbone(app: &tauri::AppHandle, cfg: &config::TrayConfig) -> bool {
     if !cfg.spawn_daemon {
-        // Choix explicite (D1) : un daemon est gere ailleurs -> subscriber pur, pas de banniere.
+        // Choix explicite : un iakahub est gere ailleurs -> subscriber pur, pas de banniere.
         return true;
     }
-    match app.shell().sidecar("iakatc-daemon") {
+    match app.shell().sidecar("iakahub") {
         Ok(cmd) => match cmd.spawn() {
             Ok((mut rx, child)) => {
                 *app.state::<AppState>().daemon_child.lock().unwrap() = Some(child);
@@ -80,19 +84,19 @@ fn spawn_daemon(app: &tauri::AppHandle, cfg: &config::TrayConfig) -> bool {
                     use tauri_plugin_shell::process::CommandEvent;
                     while let Some(ev) = rx.recv().await {
                         if let CommandEvent::Stderr(line) = ev {
-                            eprintln!("[iakatc-daemon] {}", String::from_utf8_lossy(&line));
+                            eprintln!("[iakahub] {}", String::from_utf8_lossy(&line));
                         }
                     }
                 });
                 true
             }
             Err(e) => {
-                eprintln!("[iakatc-tray] spawn du daemon echoue: {e} — mode subscriber pur.");
+                eprintln!("[iakatc-tray] spawn d'iakahub echoue: {e} — mode subscriber pur.");
                 false
             }
         },
         Err(e) => {
-            eprintln!("[iakatc-tray] sidecar daemon introuvable: {e} — mode subscriber pur.");
+            eprintln!("[iakatc-tray] sidecar iakahub introuvable: {e} — mode subscriber pur.");
             false
         }
     }

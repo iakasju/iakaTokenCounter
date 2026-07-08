@@ -1,13 +1,14 @@
 //! config — coordonnees broker + options d'execution de la GUI, lues depuis l'environnement.
 //!
-//! La GUI et le daemon lisent **les memes variables** (contrat § 6) pour pointer le meme broker.
-//! Ajoute `IAKATC_SPAWN_DAEMON` (defaut `true`, D1) : mettre `false` pour ne pas spawner le
-//! daemon en sidecar (cas d'un daemon deja gere par le systeme).
+//! La GUI et le daemon lisent **les memes variables** (contrat § 6) pour pointer le meme broker
+//! (defaut : iakahub local `127.0.0.1`). `IAKATC_SPAWN_DAEMON` (defaut `true`) : mettre `false`
+//! pour ne pas spawner le backbone `iakahub` en sidecar (cas d'un iakahub deja gere par le systeme).
 
 /// Racine de topic par defaut (contrat § 1).
 pub const DEFAULT_ROOT: &str = "iakatokencounter";
-/// Broker Mosquitto iakabox par defaut (contrat § 6).
-pub const DEFAULT_HOST: &str = "192.168.2.11";
+/// Broker par defaut : **iakahub local** (`127.0.0.1`), le backbone standalone du poste.
+/// Surchargeable par `IAKATC_MQTT_HOST` (ex. pour pointer un broker distant).
+pub const DEFAULT_HOST: &str = "127.0.0.1";
 pub const DEFAULT_PORT: u16 = 1883;
 
 /// Configuration d'execution de la GUI tray.
@@ -19,7 +20,7 @@ pub struct TrayConfig {
     pub password: Option<String>,
     pub root: String,
     pub client_id: String,
-    /// Spawner le daemon en sidecar au demarrage (D1). `false` => subscriber pur.
+    /// Spawner le backbone `iakahub` en sidecar au demarrage. `false` => subscriber pur.
     pub spawn_daemon: bool,
 }
 

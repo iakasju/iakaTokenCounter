@@ -28,10 +28,11 @@ fi
 run "Front (typecheck)" npm run typecheck
 run "Front (build dist)" npm run build
 
-# --- Sidecar : le binaire daemon target-triple doit exister pour le bundling Tauri -----------
-# (Sans lui, le compile passe mais `cargo tauri build` echoue au bundling — cf. prepare-sidecar.sh.)
-if ! ls src-tauri/binaries/iakatc-daemon-* >/dev/null 2>&1; then
-  run "Sidecar (build+copy)" bash scripts/prepare-sidecar.sh
+# --- Sidecars : iakahub + iakatc-daemon target-triple doivent exister pour le bundling Tauri --
+# (Sans eux, le compile passe mais `cargo tauri build` echoue au bundling — cf. prepare-sidecar.sh.)
+if ! ls src-tauri/binaries/iakahub-* >/dev/null 2>&1 \
+  || ! ls src-tauri/binaries/iakatc-daemon-* >/dev/null 2>&1; then
+  run "Sidecars (build+copy)" bash scripts/prepare-sidecar.sh
 fi
 
 # --- Rust : workspace complet (core + daemon + tray) ----------------------------------------
