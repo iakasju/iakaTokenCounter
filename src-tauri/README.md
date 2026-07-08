@@ -12,7 +12,10 @@ depuis la webview.
 ## Architecture
 
 ```
-  daemon iakatc-daemon (sidecar) ──publish retained──►  broker Mosquitto (iakalogs)
+  iakahub (sidecar)  ── broker MQTT local 127.0.0.1 (rumqttd, anonyme)
+      │  spawne + supervise
+      ▼
+  iakatc-daemon (enfant d'iakahub)  ──publish retained──►  broker local iakahub
                                                               │  subscribe (retained, QoS 1)
                                                               ▼
    backend Rust (rumqttc, thread)  ──etat en memoire──►  ReservoirCard[]
@@ -21,11 +24,16 @@ depuis la webview.
    webview (popover TS)  ──rend les cartes / jauges / badges de confiance
 ```
 
+> **Backbone local (iakahub)** : la GUI ne spawne plus le daemon directement — elle spawne
+> **`iakahub`**, qui embarque un **broker MQTT local** (`127.0.0.1`, anonyme) **et** lance/supervise
+> le measure daemon a cote de lui. Le poste est **standalone** : aucune dependance a un broker
+> externe. Cadrage : [`../specs/instructions/feature-iakahub.md`](../specs/instructions/feature-iakahub.md).
+
 - **Backend Rust** (`src/mqtt_sub.rs`, `src/state.rs`) : seul a parler MQTT. Abonnements
   `…/all/ia/+/+/quota/#` (jauges, decouverte dynamique des comptes) et `…/meta/daemon/#`.
 - **Tray** (`src/tray.rs`) : icone simple + tooltip du **pire reservoir**, clic gauche =
   popover, menu droit = Ouvrir / Quitter.
-- **Sidecar** (`src/lib.rs`) : le daemon est **spawne** au demarrage (voir plus bas).
+- **Sidecar** (`src/lib.rs`) : le backbone **`iakahub`** est **spawne** au demarrage (voir plus bas).
 - **Vue analytics** (`src/analytics.rs`, `src/history.rs`) : double-clic sur une carte ->
   fenetre d'**historique** du provider (voir plus bas).
 
@@ -62,30 +70,33 @@ La GUI lit **les memes variables que le daemon** (contrat § 6) pour pointer le 
 
 | Variable | Defaut | Role |
 |---|---|---|
-| `IAKATC_MQTT_HOST` | `192.168.2.11` | Hote Mosquitto |
-| `IAKATC_MQTT_PORT` | `1883` | Port TCP |
-| `IAKATC_MQTT_USER` | — (repli `MOSQUITTO_USER`) | Utilisateur MQTT |
-| `IAKATC_MQTT_PASSWORD` | — (repli `MOSQUITTO_PASSWORD`) | Mot de passe (**jamais commite**) |
+| `IAKATC_MQTT_HOST` | `127.0.0.1` | Hote broker (**iakahub local** par defaut ; surchargeable pour un broker distant) |
+| `IAKATC_MQTT_PORT` | `1883` | Port TCP (partage avec iakahub) |
+| `IAKATC_MQTT_USER` | — (repli `MOSQUITTO_USER`) | Utilisateur MQTT (optionnel : broker local anonyme) |
+| `IAKATC_MQTT_PASSWORD` | — (repli `MOSQUITTO_PASSWORD`) | Mot de passe (**jamais commite** ; optionnel en local) |
 | `IAKATC_MQTT_ROOT` | `iakatokencounter` | Racine de topic |
 | `IAKATC_MQTT_CLIENT_ID` | `iakatc-tray-<host>` | Identifiant client MQTT |
-| `IAKATC_SPAWN_DAEMON` | `true` | Spawner le daemon en sidecar (`false` = subscriber pur) |
+| `IAKATC_SPAWN_DAEMON` | `true` | Spawner le backbone `iakahub` en sidecar (`false` = subscriber pur) |
 
-## Daemon en sidecar (D1)
+## Backbone iakahub en sidecar
 
-Au demarrage, la GUI **spawne `iakatc-daemon`** embarque en sidecar (`bundle.externalBin`), sauf
-si `IAKATC_SPAWN_DAEMON=false` (cas d'un daemon deja gere par le systeme / headless). La GUI et le
-daemon **ne se parlent que via le broker**. Le daemon sidecar **s'arrete avec la GUI** (limite
-assumee au MVP).
+Au demarrage, la GUI **spawne `iakahub`** embarque en sidecar (`bundle.externalBin`), sauf si
+`IAKATC_SPAWN_DAEMON=false` (cas d'un iakahub deja gere par le systeme / headless). iakahub demarre
+le **broker MQTT local** (`127.0.0.1`, anonyme) puis **spawne et supervise `iakatc-daemon`** a cote
+de lui (env broker injecte). La GUI et le daemon **ne se parlent que via le broker local**. iakahub
+sidecar **s'arrete avec la GUI**, et **termine alors le daemon** (arret en cascade, pas d'orphelin).
 
-Le binaire doit exister **avec le suffixe target-triple** attendu par Tauri
-(`src-tauri/binaries/iakatc-daemon-<triple>`). Le produire avant tout `build`/`tauri dev` :
+Les **deux** binaires doivent exister **avec le suffixe target-triple** attendu par Tauri
+(`src-tauri/binaries/iakahub-<triple>` **et** `iakatc-daemon-<triple>` — iakahub localise le daemon
+a cote de lui). Les produire avant tout `build`/`tauri dev` :
 
 ```bash
-bash scripts/prepare-sidecar.sh          # build release du daemon + copie avec le bon suffixe
+bash scripts/prepare-sidecar.sh          # build release iakahub + daemon + copie avec le bon suffixe
 ```
 
-**Spawn en echec** (binaire absent) : pas de crash — bandeau « daemon indisponible » et la GUI
-continue en subscriber pur (utile si un daemon tourne ailleurs sur le broker).
+**Spawn en echec** (binaire absent) : pas de crash — bandeau « backbone indisponible » et la GUI
+continue en subscriber pur (utile si un iakahub tourne ailleurs sur le broker). **Port occupe** :
+iakahub journalise et sort en code != 0 (fail-fast, pas d'auto-increment ; fixer `IAKATC_MQTT_PORT`).
 
 ## Developpement / build
 
