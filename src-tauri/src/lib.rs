@@ -6,6 +6,7 @@
 mod analytics;
 mod config;
 mod history;
+pub mod icon;
 mod mqtt_sub;
 mod state;
 mod tray;
