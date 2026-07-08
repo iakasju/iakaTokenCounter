@@ -19,6 +19,11 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-shell = "2"
+# Composition + rasterisation RGBA de l'icone de tray (logo officiel + mini-reservoirs, D2).
+# Voie A de la spec (docs/design/tray-icon-spec.html) : SVG compose -> raster. resvg re-exporte
+# usvg + tiny_skia (pas de mismatch de version). `text`+`system-fonts` : rendu de l'initiale du
+# fallback ; on trime le reste (raster/gif/webp) pour alleger l'arbre de deps. Epingle.
+resvg = { version = "=0.47.0", default-features = false, features = ["text", "system-fonts"] }
 rumqttc = "0.24"
 serde = { workspace = true }
 serde_json = { workspace = true }
