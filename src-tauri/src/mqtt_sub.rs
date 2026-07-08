@@ -83,5 +83,7 @@ fn set_connected(app: &AppHandle, connected: bool) {
 pub fn push_state(app: &AppHandle) {
     let snapshot = app.state::<AppState>().snapshot();
     crate::tray::update_tooltip(app, snapshot.worst.as_ref(), snapshot.broker_connected);
+    // Recompose l'icone (logo + reservoirs du pire compte) a chaque maj d'etat (D2/D3).
+    crate::tray::update_icon(app, &snapshot.reservoirs);
     let _ = app.emit(STATE_EVENT, &snapshot);
 }

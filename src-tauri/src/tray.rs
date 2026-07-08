@@ -6,7 +6,7 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
 
-use crate::state::Worst;
+use crate::state::{ReservoirCard, Worst};
 
 /// Identifiant du tray, pour le retrouver via `app.tray_by_id`.
 pub const TRAY_ID: &str = "main";
@@ -57,6 +57,25 @@ pub fn update_tooltip(app: &AppHandle, worst: Option<&Worst>, connected: bool) {
         None => format!("iakaTokenCounter — aucune donnee{suffix}"),
     };
     let _ = tray.set_tooltip(Some(text));
+}
+
+/// Recompose l'icone du tray = **logo + mini-reservoirs du compte le plus critique** (D2/D3).
+/// Icone couleur **non-template** (ne s'inverse pas). Sans donnee, on garde l'icone en place.
+pub fn update_icon(app: &AppHandle, cards: &[ReservoirCard]) {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return;
+    };
+    let Some(card) = crate::icon::select_worst_account(cards) else {
+        return; // aucun compte encore : on conserve l'icone par defaut.
+    };
+    match crate::icon::render_icon(card) {
+        Ok(img) => {
+            let _ = tray.set_icon(Some(img));
+            // Couleur de marque : surtout pas de mode template (qui la teindrait en monochrome).
+            let _ = tray.set_icon_as_template(false);
+        }
+        Err(e) => eprintln!("[iakatc-tray] rendu de l'icone echoue: {e}"),
+    }
 }
 
 fn show_popover(app: &AppHandle) {
