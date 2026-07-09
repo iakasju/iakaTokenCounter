@@ -30,6 +30,12 @@ pub fn run() {
             history::get_history
         ])
         .setup(move |app| {
+            // macOS : app tray-only. Politique d'activation `Accessory` (equiv. LSUIElement) =>
+            // pas d'icone au Dock ni d'entree dans le selecteur d'apps (Cmd-Tab). Le tray et la
+            // popover restent pleinement fonctionnels.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let handle = app.handle().clone();
             tray::build_tray(&handle)?;
 
