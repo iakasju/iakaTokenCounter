@@ -4,7 +4,7 @@
 Le MVP d'iakaTokenCounter **et** le backbone local **iakahub** sont livrés, testés (94 tests
 verts, 5 gates qualité PASS) et **validés en recette réelle** ; ajout ce jour d'un correctif
 macOS **app menubar pure (plus d'icône Dock)**, ré-installé dans `/Applications` et vérifié en
-direct. Tout est commité en local sur `main` (39 commits) mais **toujours non poussé** (token
+direct. Tout est commité en local sur `main` (41 commits) mais **toujours non poussé** (token
 Forgejo invalide — 401 confirmé côté API).
 
 ## Fait récemment
@@ -20,11 +20,18 @@ Forgejo invalide — 401 confirmé côté API).
 - **Recette réelle** : app installée dans `/Applications`, lancée ; quota Max réel capturé,
   chaîne iakahub→daemon→tray confirmée vivante (broker `127.0.0.1`, topics retained frais).
   Design **validé de visu par le décideur**.
-- **[2026-07-09] Correctif macOS « app menubar pure »** : `ActivationPolicy::Accessory` posée au
-  runtime dans le setup Tauri (`src-tauri/src/lib.rs`) → **plus d'icône ronde au Dock ni d'entrée
-  ⌘-Tab** ; tray + popover intacts. Vérifié objectivement (`lsappinfo type="UIElement"`). Build
-  `.app` OK (le `.dmg` échoue sur `-1743` : automatisation Finder non autorisée — non bloquant,
-  distribution par `.app`). Nouveau bundle ré-installé dans `/Applications` et relancé.
+- **[2026-07-09] Correctif macOS « app menubar pure »** — deux temps :
+  (1) `ActivationPolicy::Accessory` posée au runtime dans le setup Tauri (`src-tauri/src/lib.rs`) ;
+  s'est révélée **insuffisante** : l'icône Dock **réapparaissait** (flash au lancement / création
+  de fenêtre à l'exécution). (2) **Correctif solide** : `src-tauri/Info.plist` avec
+  `LSUIElement=true` (fusionné par Tauri v2 → agent macOS **statique**, autoritaire dès le
+  lancement, insensible aux fenêtres) ; l'appel runtime est conservé (couvre `tauri dev`).
+  Résultat : **plus d'icône Dock ni d'entrée ⌘-Tab** ; tray + popover intacts (vérifié
+  `LSUIElement=true` dans le bundle + `lsappinfo type="UIElement"`). Une **tuile « récente »
+  résiduelle** du Dock (héritée des lancements *Regular* d'avant le fix) subsistait : retirée à la
+  main (clic droit → Retirer du Dock) ; ne revient plus (un agent ne s'ajoute pas aux récentes).
+  Build `.app` OK (le `.dmg` échoue sur `-1743` : automatisation Finder non autorisée — non
+  bloquant, distribution par `.app`). Nouveau bundle ré-installé dans `/Applications`.
   Diagnostic « barres Claude vides » au démarrage = **latence de première capture** (pas de bug) :
   l'info officielle n'existe qu'une fois que la statusline Claude Code a émis `rate_limits` ; les
   barres se remplissent au tick suivant (daemon publie 312 codes, broker connecté).
@@ -43,7 +50,7 @@ Forgejo invalide — 401 confirmé côté API).
 
 ## Prochaine étape
 Au choix du décideur (rien d'urgent) :
-- **Push Forgejo** dès qu'un token valide est fourni (39 commits à archiver) — *le plus
+- **Push Forgejo** dès qu'un token valide est fourni (41 commits à archiver) — *le plus
   prioritaire pour la sauvegarde distante*. Le token actuel (`.git/config` **et** `$FORGEJO_TOKEN`)
   est refusé en 401 → **régénérer un token `write:repository`** sur Forgejo puis pousser.
 - Ou enchaîner une suite de vision (voir Points d'attention).
@@ -67,12 +74,13 @@ Au choix du décideur (rien d'urgent) :
   (note dans `src-tauri/README.md`).
 
 ## Journal de reprise
-- **2026-07-09** — Correctif macOS « app menubar pure » (`ActivationPolicy::Accessory`) : icône
-  Dock supprimée, vérifiée `UIElement` ; nouveau `.app` ré-installé dans `/Applications`. Confirmé
-  que les barres Claude vides au démarrage = latence de première capture (pas un bug), elles se
-  remplissent au tick suivant. Push Forgejo **toujours bloqué** (token 401, `.git/config` +
-  `$FORGEJO_TOKEN`). Prochaine reprise : régénérer un token `write:repository` et pousser les
-  39 commits.
+- **2026-07-09** — Correctif macOS « app menubar pure » : `ActivationPolicy::Accessory` (runtime)
+  d'abord, jugée **insuffisante** (icône Dock réapparaissait) ; corrigé pour de bon via
+  `LSUIElement=true` dans `src-tauri/Info.plist` (agent statique). Icône Dock supprimée + tuile
+  « récente » résiduelle retirée à la main → **confirmé OK par le décideur**. Barres Claude vides
+  au démarrage = latence de première capture (pas un bug). Push Forgejo **toujours bloqué**
+  (token 401, `.git/config` + `$FORGEJO_TOKEN`). Prochaine reprise : régénérer un token
+  `write:repository` et pousser les 41 commits.
 - **2026-07-08** — Jalon MVP+iakahub livré et validé en recette réelle (5 gates PASS, 94 tests,
   36 commits locaux non poussés). Prochaine reprise : pousser sur Forgejo (token à régénérer),
   puis choisir une suite (bridge iakabox / vendoring Cockpit / tokenizer).
