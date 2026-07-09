@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App menubar/tray pure : agent macOS sans icone au Dock ni entree Cmd-Tab, des le
+         lancement (autorite statique, insensible a la creation de fenetres a l'execution).
+         Complete l'appel runtime ActivationPolicy::Accessory (lib.rs), qui couvre `tauri dev`
+         ou ce plist n'est pas bundle. Tauri v2 fusionne ce fichier dans l'Info.plist genere. -->
+    <key>LSUIElement</key>
+    <true/>
+</dict>
+</plist>
