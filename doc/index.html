@@ -1,0 +1,177 @@
+<!DOCTYPE html><html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iakaTokenCounter — présentation</title>
+<script>try{var t=localStorage.getItem('ne-doc-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<style>
+:root{
+  --bg-primary:#0a0a0a; --bg-card:#1a1a1a; --bg-deep:#111;
+  --line:#2a2a2a; --line-soft:#1f1f1f;
+  --text-primary:#f0f0f0; --text-secondary:#8a8a8a; --text-muted:#555;
+  --accent-gold:#c8a44e; --accent-gold-light:#e8c960; --accent-rgb:200,164,78;
+  --gradient-accent:linear-gradient(135deg,var(--accent-gold),var(--accent-gold-light));
+  --red:#e74c3c; --green:#2ecc71; --blue:#3498db; --orange:#e67e22; --purple:#9b59b6;
+  --radius-md:12px; --radius-lg:20px; --shadow-glow:0 0 40px rgba(var(--accent-rgb),0.15);
+  --font-sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-serif:"Fraunces",Georgia,"Times New Roman",serif;
+  --mono:"JetBrains Mono",ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+:root, :root[data-theme="dark"]{
+  --w-gold:#c8a44e; --w-gold-light:#e8c960; --w-accent-rgb:200,164,78;
+  --w-mut:#555; --w-shadow:rgba(0,0,0,.5); --w-tg-bg:#161616;
+}
+:root[data-theme="light"]{
+  --w-gold:#a8842e; --w-gold-light:#c8a44e; --w-accent-rgb:168,132,46;
+  --w-mut:#9a938a; --w-shadow:rgba(120,110,90,.18); --w-tg-bg:#fff;
+  --bg-primary:#f4f2ec; --bg-card:#fff; --bg-deep:#f1ede3;
+  --line:#e2dccb; --line-soft:#ece7db;
+  --text-primary:#1a1a1a; --text-secondary:#4a4a4a; --text-muted:#9a938a;
+  --accent-gold:#a8842e; --accent-gold-light:#c8a44e; --accent-rgb:168,132,46;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.6;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;transition:background .25s,color .25s}
+a{color:var(--accent-gold);text-decoration:none}
+code{font-family:var(--mono)}
+.doc-accent{background:var(--gradient-accent);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* Entete */
+.doc-head{display:flex;align-items:center;gap:.8rem;padding:1.1rem 1.6rem;border-bottom:1px solid var(--line-soft);max-width:80rem;margin:0 auto;width:100%}
+.doc-brand{font-family:var(--font-serif);font-weight:300;letter-spacing:-.02em;font-size:1.35rem}
+.doc-brand em{font-style:italic;font-weight:400;color:#f4c430}
+.doc-proj{font-family:var(--mono);font-size:.8rem;color:var(--accent-gold);letter-spacing:.02em}
+.doc-sep{flex:1}
+.doc-stamp{font-family:var(--mono);font-size:.68rem;color:var(--text-muted);white-space:nowrap}
+
+/* Interrupteur de theme (repris verbatim d'index.html) */
+.theme-toggle{position:relative;width:58px;height:26px;border-radius:999px;flex:0 0 auto;cursor:pointer;padding:0;margin-right:.4rem;
+  background:var(--w-tg-bg);border:1px solid rgba(var(--w-accent-rgb),.45);box-shadow:0 1px 3px var(--w-shadow) inset;transition:background .25s}
+.theme-toggle .ic{position:absolute;top:50%;transform:translateY(-50%);width:13px;height:13px;stroke:var(--w-mut);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.theme-toggle .moon{left:7px}.theme-toggle .sun{right:7px}
+.theme-toggle .knob{position:absolute;top:2px;width:20px;height:20px;border-radius:50%;
+  background:linear-gradient(180deg,var(--w-gold-light),var(--w-gold));box-shadow:0 1px 4px rgba(0,0,0,.45);transition:left .22s ease}
+:root[data-theme="dark"] .theme-toggle .knob{left:2px}
+:root[data-theme="light"] .theme-toggle .knob{left:36px}
+:root[data-theme="dark"] .theme-toggle .moon{stroke:#241c07;z-index:1}
+:root[data-theme="light"] .theme-toggle .sun{stroke:#241c07;z-index:1}
+
+/* Onglets */
+.doc-tabs{position:sticky;top:0;z-index:20;background:var(--bg-primary);border-bottom:1px solid var(--line-soft);
+  padding:.6rem 1.6rem;display:flex;gap:.5rem;flex-wrap:wrap;max-width:80rem;margin:0 auto;width:100%}
+.doc-tab{appearance:none;border:1px solid var(--line);background:var(--bg-card);color:var(--text-secondary);
+  font:600 .85rem var(--font-sans);padding:.42rem .9rem;border-radius:999px;cursor:pointer;transition:.16s;white-space:nowrap}
+.doc-tab:hover{color:var(--text-primary);border-color:rgba(var(--accent-rgb),.4)}
+.doc-tab.active{color:#0a0a0a;background:var(--gradient-accent);border-color:transparent;box-shadow:var(--shadow-glow);font-weight:700}
+
+/* Panneaux */
+.doc-stage{flex:1;max-width:80rem;margin:0 auto;width:100%;padding:1.6rem 1.6rem 3rem}
+.doc-panel{display:none}
+.doc-panel.active{display:block;animation:doc-fade .22s ease}
+@keyframes doc-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.doc-panel.active{animation:none}}
+
+.doc-h{font-family:var(--font-serif);font-size:1.3rem;font-weight:700;margin:1.6rem 0 .7rem;padding-bottom:.35rem;border-bottom:1px solid var(--line);color:var(--text-primary)}
+.doc-h:first-child{margin-top:.2rem}
+.doc-h4{font-size:1rem;font-weight:700;margin:.2rem 0 .5rem;color:var(--accent-gold)}
+.doc-sub{font:600 .72rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:1rem 0 .4rem}
+.doc-note{border:1px dashed var(--line);border-radius:var(--radius-md);padding:1rem 1.2rem;color:var(--text-muted);font-size:.9rem;margin:.5rem 0}
+.doc-note code{background:rgba(var(--accent-rgb),.08);color:var(--accent-gold);padding:.1rem .4rem;border-radius:5px}
+.doc-empty{text-align:center;padding:2.4rem 1.2rem}
+.doc-cols{display:grid;gap:1.4rem;grid-template-columns:1fr}
+@media(min-width:760px){.doc-cols{grid-template-columns:1fr 1fr}}
+
+/* Chips stack + arbre */
+.doc-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0}
+.doc-chip{font:600 .78rem var(--font-sans);background:rgba(var(--accent-rgb),.1);color:var(--accent-gold);
+  border:1px solid rgba(var(--accent-rgb),.35);padding:.28rem .7rem;border-radius:999px}
+.doc-chip-na{background:var(--bg-card);color:var(--text-muted);border-color:var(--line)}
+.doc-stack-detail{margin:.7rem 0;font-size:.85rem;color:var(--text-secondary)}
+.doc-stack-detail>div{padding:.2rem 0}
+.doc-k{color:var(--text-muted);font-family:var(--mono);font-size:.78rem}
+.doc-v{color:var(--text-primary);font-family:var(--mono);font-size:.8rem}
+.doc-kv{margin:.4rem 0}
+.doc-tree{list-style:none;padding:0;margin:.4rem 0;display:flex;flex-wrap:wrap;gap:.4rem}
+.doc-tree li{font-family:var(--mono);font-size:.8rem;color:var(--text-secondary);background:var(--bg-card);
+  border:1px solid var(--line-soft);border-radius:6px;padding:.22rem .6rem}
+.doc-tree li.doc-tree-key{color:var(--accent-gold);border-color:rgba(var(--accent-rgb),.35)}
+
+/* Logs / status / issues */
+.doc-log,.doc-status{list-style:none;padding:0;margin:.3rem 0 .8rem;font-family:var(--mono);font-size:.78rem}
+.doc-log li,.doc-status li{padding:.18rem .5rem;border-bottom:1px solid var(--line-soft);color:var(--text-secondary);white-space:pre-wrap;word-break:break-word}
+.doc-bul{margin:.3rem 0 .8rem 1.1rem}
+.doc-bul li{color:var(--text-secondary);margin:.25rem 0;font-size:.9rem}
+.doc-issues{list-style:none;padding:0;margin:.4rem 0}
+.doc-issue{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.4rem .2rem;border-bottom:1px solid var(--line-soft)}
+.doc-inum{font-family:var(--mono);font-size:.76rem;color:var(--text-muted)}
+.doc-istate{font:700 .6rem var(--mono);text-transform:uppercase;letter-spacing:.05em;padding:.12rem .4rem;border-radius:5px}
+.doc-istate-open{background:rgba(46,204,113,.16);color:var(--green);border:1px solid rgba(46,204,113,.4)}
+.doc-istate-closed{background:rgba(120,120,120,.14);color:var(--text-muted);border:1px solid var(--line)}
+.doc-ititle{color:var(--text-primary);font-size:.88rem;flex:1;min-width:12ch}
+.doc-label{font:600 .64rem var(--font-sans);background:rgba(var(--accent-rgb),.08);color:var(--accent-gold);border:1px solid rgba(var(--accent-rgb),.3);padding:.1rem .45rem;border-radius:999px}
+
+/* Rendu markdown (repris d'index.html, prefixe .doc-md) */
+.doc-md{max-width:80ch}
+.doc-md h1{font-family:var(--font-serif);font-size:1.9rem;font-weight:800;letter-spacing:-.02em;margin:1.6rem 0 .8rem;line-height:1.2}
+.doc-md h2{font-family:var(--font-serif);font-size:1.4rem;font-weight:700;margin:1.8rem 0 .7rem;padding-bottom:.35rem;border-bottom:1px solid var(--line)}
+.doc-md h3{font-size:1.12rem;font-weight:700;margin:1.3rem 0 .5rem;color:var(--text-primary)}
+.doc-md h4{font-size:1rem;font-weight:700;margin:1.1rem 0 .4rem;color:var(--accent-gold)}
+.doc-md p{color:var(--text-secondary);margin:.6rem 0}
+.doc-md a{color:var(--accent-gold)}
+.doc-md strong{color:var(--text-primary)}
+.doc-md em{color:var(--text-secondary)}
+.doc-md code{background:rgba(var(--accent-rgb),.08);color:var(--accent-gold);padding:.1rem .4rem;border-radius:5px;font-size:.85em}
+.doc-md pre{background:var(--bg-deep);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem 1.2rem;margin:1rem 0;overflow-x:auto}
+.doc-md pre code{background:none;color:#d8d8d8;padding:0}
+.doc-md blockquote{border-left:3px solid var(--accent-gold);background:rgba(var(--accent-rgb),.05);padding:.6rem 1rem;margin:1rem 0;border-radius:0 8px 8px 0;color:var(--text-secondary)}
+.doc-md hr{border:0;border-top:1px solid var(--line);margin:1.6rem 0}
+.doc-md ul{list-style:none;padding-left:0;margin:.6rem 0}
+.doc-md ul.bul{padding-left:1.2rem;list-style:disc}
+.doc-md ul.bul li{color:var(--text-secondary);margin:.3rem 0}
+.doc-md li{margin:.35rem 0;color:var(--text-secondary)}
+.doc-md .chk{display:inline-flex;align-items:baseline;gap:.55rem;padding:.35rem 0}
+.doc-md .chk .pill{flex:0 0 auto;width:18px;height:18px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font:700 .7rem var(--mono);margin-top:.15rem}
+.doc-md .chk.todo .pill{border:1px solid var(--line);background:var(--bg-deep);color:var(--text-muted)}
+.doc-md .chk.doing .pill{background:rgba(52,152,219,.16);color:var(--blue);border:1px solid rgba(52,152,219,.4)}
+.doc-md .chk.done .pill{background:rgba(46,204,113,.16);color:var(--green);border:1px solid rgba(46,204,113,.4)}
+.doc-md .chk.block .pill{background:rgba(231,76,60,.16);color:var(--red);border:1px solid rgba(231,76,60,.45)}
+.doc-md .chk .txt{color:var(--text-secondary)}
+.doc-md .chk.done .txt{color:var(--text-muted)}
+.doc-md .chk.block .txt{color:var(--text-primary)}
+
+.doc-foot{text-align:center;padding:1.4rem 1.6rem;border-top:1px solid var(--line-soft);color:var(--text-muted);font-size:.78rem;margin-top:auto}
+.doc-foot code{background:rgba(var(--accent-rgb),.08);color:var(--accent-gold);padding:.1rem .4rem;border-radius:5px}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:999px}
+</style>
+</head>
+<body>
+<header class="doc-head">
+  <div class="doc-brand">NAOn<em>Edge</em> · <span class="doc-proj">iakaTokenCounter</span></div>
+  <span class="doc-sep"></span>
+  <button class="theme-toggle" id="themeToggle" type="button" aria-label="Basculer theme clair/sombre" title="Basculer theme clair/sombre"><svg class="ic moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="ic sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span class="knob"></span></button>
+  <span class="doc-stamp">généré le 2026-07-08</span>
+</header>
+<nav class="doc-tabs" id="doc-tabs">
+  <button class="doc-tab active" data-tab="presentation" type="button">Présentation</button>
+  <button class="doc-tab" data-tab="archi" type="button">Archi</button>
+  <button class="doc-tab" data-tab="backlog" type="button">Backlog</button>
+</nav>
+<main class="doc-stage">
+  <section class="doc-panel active" data-panel="presentation"><div class="doc-md"><h1>PROJET — iakaTokenCounter</h1><blockquote>Espace de réflexion (cadrage). Document de vision et de specs.</blockquote><blockquote><strong>Aucun code n'est écrit ici</strong> — seulement des décisions et des spécifications.</blockquote><hr><h2>Vision</h2><p><strong>Un moniteur de consommation IA multi-comptes, en icône de barre système (tray).</strong></p><p>Sur un poste de travail qui consomme de l'IA de <strong>plusieurs sources / comptes</strong> (Claude,</p><p>OpenAI, etc.), iakaTokenCounter affiche dans le <strong>tray</strong> un **petit réservoir (jauge) par</p><p>compte IA<strong> — on voit d'un coup d'œil, compte par compte, </strong>ce qu'il reste du quota du</p><p>plan<strong> (le contingent se recharge périodiquement). Un </strong>double-clic sur les barres** ouvre</p><p>une <strong>app locale de logs &amp; analytics</strong> (historique, courbes, détail par compte).</p><p>L'app est <strong>autonome</strong> : elle tourne <strong>sans dépendance au projet iaka</strong> (utile sur</p><p>n'importe quel poste). Mais <strong>sa pertinence explose dans le cadre iakaproject</strong> (corrélation</p><p>avec les projets, les agents et la chaîne).</p><blockquote>Note d'histoire : le nom vient d'un cadrage initial « compteur de tokens ». Le comptage</blockquote><blockquote>de tokens reste une <strong>brique interne</strong> (estimer une conso quand la source ne la donne</blockquote><blockquote>pas), mais <strong>le produit est le moniteur tray + analytics</strong>.</blockquote><h2>Cap (nord) — iakahub (broker local embarqué), iakaTokenCounter daemon de mesure</h2><blockquote>Architecture pub/sub avec un <strong>backbone LOCAL et autonome : iakahub</strong>. Décision décideur</blockquote><blockquote>(2026-07-08) : <strong>pas de dépendance à un broker externe authentifié</strong> (le mot de passe</blockquote><blockquote>iakabox est irrécupérable et bloquait la connexion) → iakahub embarque son propre broker.</blockquote><p><strong>iakahub = daemon local qui embarque son propre broker MQTT</strong> (born ici, dans</p><p>iakaTokenCounter, avec vocation à devenir un composant portefeuille — ressort Odin) :</p><ul class="bul"><li><strong>Broker MQTT embarqué in-process</strong> (chemin technique : crate Rust <strong><code>rumqttd</code></strong>, pendant</li></ul><p>  broker de <code>rumqttc</code> déjà utilisé), écoute en <strong>local</strong> (<code>127.0.0.1</code>). Aucun mot de passe,</p><p>  aucune dépendance réseau → <strong>standalone total</strong>.</p><ul class="bul"><li><strong>Rôle = broker + orchestration</strong> uniquement. La <strong>mesure reste séparée</strong> : le measure</li></ul><p>  daemon d'iakaTokenCounter est une brique distincte qui <strong>se connecte à iakahub</strong>.</p><ul class="bul"><li><strong>Local d'abord.</strong> Un <strong>bridge MQTT vers le Mosquitto iakabox</strong> (<code>192.168.2.11:1883</code>) est</li></ul><p>  une <strong>option ultérieure</strong> (vue portefeuille), pas le MVP.</p><p><strong>Rôles (pub/sub) :</strong></p><ul class="bul"><li><strong>iakahub = backbone local</strong> : broker MQTT embarqué (<code>127.0.0.1</code>). Point de passage unique</li></ul><p>  sur le poste ; à terme bridge iakabox + absorption logs + routage conversations.</p><ul class="bul"><li><strong>iakaTokenCounter = daemon de mesure</strong> (headless) : mesure <strong>conso / limits / quota</strong> de</li></ul><p>  tokens et <strong>publie dans le broker d'iakahub</strong> (<code>127.0.0.1</code>), selon deux axes d'agrégation :</p><ul class="bul"><li><code>.../all/projets/agents/...</code> — par <strong>projet × agent</strong>,</li><li><code>.../all/ia/agents/...</code> — par <strong>IA (fournisseur) × agent</strong>.</li><li><strong>Subscribers</strong> : <strong>IakaCockpit</strong> (widgets <code>economy</code>/<code>log</code>) et la future <strong>GUI tray</strong></li></ul><p>  d'iakaTokenCounter s'abonnent à ce qui les intéresse — ils ne recalculent pas.</p><p><strong>Principe d'allègement client — messages <code>retained</code> :</strong></p><ul class="bul"><li>Le daemon publie l'<strong>état courant</strong> et le <strong>dernier</strong> (<code>current</code> / <code>last</code>) en **MQTT</li></ul><p>  retained**, pour que tout client lise l'état directement (pas de rejeu des logs bruts).</p><p><strong>Cœur de mesure</strong> : réutilise <code>IakaCockpit/src-tauri/src/economy.rs</code> (Rust, testé) pour</p><p>l'usage Claude Code, étendu à <strong>Codex</strong> + <strong>capture quota</strong> (statusline <code>rate_limits</code>).</p><blockquote><strong>Contrainte (décideur) : on ne touche PAS au dépôt iakaboxlogs</strong> (garde son nom, son</blockquote><blockquote>code). Le daemon <strong>publie sur son broker Mosquitto existant</strong> (un broker accepte tout</blockquote><blockquote>topic sans modif). La <strong>persistance CouchDB</strong> des métriques (qui toucherait le pont</blockquote><blockquote>iakaboxlogs) est <strong>repoussée</strong> ; le MVP se contente des messages MQTT <code>retained</code>.</blockquote><h2>Objectifs</h2><ul class="bul"><li>Afficher dans le tray une <strong>jauge de quota restant par compte IA</strong> (≥ 1 source réelle).</li><li>Alimenter les jauges depuis les <strong>logs locaux des agents</strong> (aucune clé API requise pour le MVP).</li><li>Ouvrir sur <strong>double-clic</strong> une <strong>app locale d'analytics</strong> (historique de conso par compte).</li><li>Fonctionner en <strong>multi-OS</strong> (macOS + Windows, Linux souhaité).</li><li>Rester <strong>runnable en standalone</strong>, sans rien du projet iaka.</li></ul><h2>Périmètre</h2><p><strong>Dans le scope :</strong></p><ul class="bul"><li>Tray icon multi-OS avec une jauge « quota du plan restant » par compte.</li><li>Collecte de conso par <strong>parsing des logs locaux d'agents</strong> (source(s) à confirmer par Gandalf).</li><li>App locale d'analytics ouverte au double-clic (logs, courbes, agrégats par compte/période).</li><li>Modèle de « réservoir » = <strong>quota du plan qui se recharge</strong> (% restant sur la fenêtre du plan).</li></ul><p><strong>Hors scope (pour l'instant) :</strong></p><ul class="bul"><li>Interrogation des APIs usage/billing des fournisseurs (clés API) — itération ultérieure possible.</li><li>Comptage de texte « playground » (coller un prompt → nombre de tokens) comme produit principal.</li><li>Multimodal / image.</li></ul><hr><h2>Stack technique — décision</h2><p>| Couche | Choix | Raison |</p><p>|---|---|---|</p><p>| Tray + app locale | <strong>Tauri v2</strong> (Rust + webview) | Multi-OS, léger (&lt;10 Mo, ~35 Mo RAM) pour un outil toujours ouvert, local-first, front TS |</p><p>| Langage | TypeScript (front) + Rust (backend Tauri minimal) | Cohérent iakaframe, tray natif cross-OS |</p><p>| Parsing usage | <strong>ccusage</strong> (MIT, TS) importé comme lib | Parse déjà les JSONL Claude Code <strong>+ Codex</strong> ; on ne réécrit pas ça |</p><p>| Capture quota | canal <strong>statusline</strong> <code>rate_limits</code> persisté en fichier + estimation JSONL en repli | Quota exact Pro/Max quand dispo, estimé étiqueté sinon (mode hybride) |</p><p>| Brique comptage | lib TS interne (fallback conso quand le log ne donne pas l'usage) | — |</p><p>| Données locales | store local (SQLite/JSON) | Self-hosted, offline, analytics |</p><blockquote>Rappel méthode : self-hosted/open-source d'abord ; cloud en fallback justifié.</blockquote><hr><h2>Sources de données / dépendances externes</h2><p>| Besoin | Source | Quota / coût | Stratégie en dev |</p><p>|---|---|---|---|</p><p>| Conso par compte | logs locaux des agents (Claude Code JSONL, Cursor, Codex…) | gratuit (local) | à confirmer / mock dans <code>specs/mock/</code> |</p><p>| Quota du plan (recharge) | à déterminer (log ? config manuelle ?) | — | veille Gandalf |</p><p>| Comptage tokens (fallback) | lib TS locale | gratuit | — |</p><hr><h2>Architecture (esquisse, à confirmer par cadrage)</h2><pre><code>  logs locaux agents ──► collecteur/parseur ──► store local (SQLite/JSON)
+   (Claude Code, …)                                   │
+                                                      ├─► TRAY: 1 jauge « quota restant » / compte
+                                                      │
+                                              double-clic
+                                                      │
+                                                      └─► APP LOCALE analytics (historique, courbes)</code></pre><hr><h2>Backlog des features</h2><p>Chaque feature reçoit son fichier dans <code>specs/instructions/</code> AVANT implémentation.</p><p>| Feature | Instruction | État |</p><p>|---|---|---|</p><p>| Daemon de mesure v0 (conso + quota, publish MQTT) | <code>specs/instructions/feature-collecteur-logs.md</code> | <strong>livré v0 — Legolas PASS</strong> (local, non poussé) |</p><p>| Tray multi-OS + jauge quota/compte | <code>specs/instructions/feature-tray-jauges.md</code> | <strong>livré v0.2 — Legolas PASS</strong> (mergé main, non poussé) |</p><p>| App locale d'analytics (double-clic) | <code>specs/instructions/feature-app-analytics.md</code> | <strong>livré — Legolas PASS</strong> (mergé main, non poussé) |</p><p>| <strong>iakahub v0</strong> (broker MQTT local embarqué + orchestration) | <code>specs/instructions/feature-iakahub.md</code> | <strong>livré — Legolas PASS</strong> (mergé main ; broker local 127.0.0.1) |</p><p>| Refonte visuelle tray (icône réservoirs + popover barres) | <code>specs/instructions/feature-tray-visuals.md</code> | <strong>livré — Legolas PASS</strong> (mergé main) |</p><p>| Brique comptage tokens (fallback conso) | <code>specs/instructions/feature-tokenizer.md</code> | à spécifier |</p><blockquote>Contrat partagé : <code>specs/contrat-mqtt-conso.md</code> (topics code/value, retained current/last).</blockquote><hr><h2>Décisions structurantes (journal)</h2><blockquote>Trace courte des arbitrages importants — le « pourquoi » qui se perd sinon.</blockquote><ul class="bul"><li><strong>2026-07-07</strong> — Création du projet, 1er cadrage « compteur de tokens » (CLI+lib).</li><li><strong>2026-07-07</strong> — <strong>Recadrage majeur (décideur)</strong> : le produit est un **moniteur de</li></ul><p>  consommation IA multi-comptes en tray<strong>, avec </strong>jauge de quota (plan qui se recharge)</p><p>  par compte<strong>, </strong>double-clic → app locale d'analytics<strong>, </strong>runnable en standalone** mais</p><p>  à pertinence maximale dans iakaproject. Le comptage de tokens devient une brique interne.</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>Arbitrages posés</strong> : conso alimentée par **parsing des logs locaux</li></ul><p>  d'agents<strong> (pas d'API clé pour le MVP) ; réservoir = </strong>quota du plan (se recharge)** ;</p><p>  cible <strong>multi-OS dès le départ</strong>.</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>Veille technique Gandalf</strong> : le quota exact (<code>rate_limits</code>,</li></ul><p>  fenêtre 5h + hebdo) n'existe <strong>que</strong> sur le canal statusline de Claude Code (Pro/Max),</p><p>  pas dans les JSONL (qui sous-comptent). ccusage (MIT/TS) parse déjà Claude Code + Codex.</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>4 décisions verrouillées (décideur)</strong> :</li></ul><p>  1. <strong>Quota = mode hybride</strong> : statusline exact quand dispo, estimation JSONL+plafond</p><p>     sinon, avec <strong>niveau de confiance affiché</strong> par jauge.</p><p>  2. <strong>Réutiliser ccusage</strong> comme lib TS pour le parsing usage (Claude Code + Codex).</p><p>  3. <strong>MVP = Claude Code + Codex CLI</strong> (les deux sources à JSONL locaux exploitables).</p><p>     Cursor/Gemini/Copilot repoussés (OAuth/cookies).</p><p>  4. <strong>Techno = Tauri v2</strong> (tray multi-OS + fenêtre analytics).</p><p>  Défauts raisonnables ajustables plus tard : icône tray simple + jauges dans la</p><p>  popover (pas de dessin fin dans l'icône au MVP) ; afficher fenêtre 5h ET hebdo.</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>Recon écosystème (Gandalf)</strong> : le collecteur JSONL existe déjà, testé,</li></ul><p>  en Rust/Tauri dans <code>IakaCockpit/src-tauri/src/economy.rs</code> (porté de `naonedge-dashboard/</p><p>  scan.js`) ; iakaboxlogs fournit déjà Mosquitto + CouchDB. Personne ne capte le quota.</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>Décision d'architecture (décideur)</strong> : iakaTokenCounter devient le</li></ul><p>  <strong>berceau d'IakaDaemon</strong>. On <strong>déplace le collecteur utile depuis IakaCockpit</strong> vers ici</p><p>  (partie daemon). Le <strong>cœur d'IakaDaemon = un bridge/relais MQTT</strong> ; iakaTokenCounter y</p><p>  <strong>publie</strong> conso/quota (topics <code>iakatokencounter/&lt;projet&gt;</code>, <code>ALL/claude/current</code>,</p><p>  <code>.../&lt;plan&gt;/available</code>…). Le <strong>code du daemon est vendored dans IakaCockpit</strong> (widgets</p><p>  <code>economy</code>/<code>log</code> le consomment) et <strong>consommé par la GUI</strong> d'iakaTokenCounter. Le daemon</p><p>  est en <strong>Rust</strong> (réutilise economy.rs, copie Rust→Rust) → <strong>ccusage abandonné</strong> pour CC.</p><p>  À terme : fusion des logs + routage conversations vers l'extérieur. IakaDaemon <strong>bridge</strong></p><p>  vers le Mosquitto central d'iakaboxlogs (pas de nouveau broker).</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>⚠️ Discipline MVP à trancher</strong> : le cap est vaste ; définir la 1re</li></ul><p>  bouchée livrable (probable : daemon local qui publie tokencounter/quota en MQTT + tray</p><p>  qui souscrit ; logs-fusion et routage externe = phases ultérieures).</p><ul class="bul"><li><strong>2026-07-08</strong> — <strong>Recette live</strong> : MVP installé et lancé ; <strong>quota Max réel capturé</strong></li></ul><p>  (5h 93 % / 7j 47 % restant). MAIS <strong>broker iakabox inaccessible</strong> : <code>allow_anonymous false</code></p><p>  + <strong>mot de passe perdu/irrécupérable</strong> (hash). Le measure daemon et le tray ne peuvent pas</p><p>  s'y connecter → jauges vides.</p><ul class="bul"><li><strong>2026-07-08</strong> — <strong>Décision d'architecture (décideur) — iakahub</strong> : introduire <strong>iakahub</strong>,</li></ul><p>  un <strong>daemon local qui embarque son propre broker MQTT</strong> (crate Rust <code>rumqttd</code>, <code>127.0.0.1</code>),</p><p>  pour supprimer toute dépendance à un broker externe authentifié. <strong>3 arbitrages</strong> : (1)</p><p>  iakahub <strong>naît ici</strong> dans iakaTokenCounter (vocation composant portefeuille → Odin plus</p><p>  tard) ; (2) iakahub = <strong>broker + orchestration seul</strong>, le measure daemon reste <strong>séparé</strong> et</p><p>  s'y connecte ; (3) <strong>local d'abord</strong>, bridge iakabox = option ultérieure. Ceci <strong>remplace</strong></p><p>  l'idée « publier dans le Mosquitto iakabox » comme backbone du MVP.</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>Précision d'archi (décideur) — remplace l'idée « IakaDaemon relais »</strong> :</li></ul><p>  pas de nouveau backbone. <strong>iakalogs est promu « central de coms »</strong> (le hub MQTT existant).</p><p>  <strong>iakaTokenCounter = daemon de mesure</strong> qui publie conso/limits/quota <strong>dans iakalogs</strong>,</p><p>  axes <code>.../all/projets/agents/...</code> et <code>.../all/ia/agents/...</code>. <strong>IakaCockpit s'abonne</strong> à ce</p><p>  qui l'intéresse. <strong>Messages <code>retained</code> (<code>current</code>/<code>last</code>)</strong> pour alléger les calculs clients.</p><p>  → Impacte aussi le dépôt <strong>iakaboxlogs</strong> (schéma de topics + rôle central). À remonter à Odin.</p><ul class="bul"><li><strong>2026-07-07</strong> — <strong>Contrainte (décideur)</strong> : <strong>ne pas toucher au dépôt iakaboxlogs</strong> pour</li></ul><p>  l'instant (nom + code inchangés). Le daemon publie sur son <strong>broker Mosquitto existant</strong></p><p>  (aucune modif broker requise pour ajouter des topics). Persistance CouchDB des métriques</p><p>  <strong>repoussée</strong> ; MVP = publication MQTT <code>retained</code> seule. Feu vert cadrage daemon v0.</p></div></section>
+  <section class="doc-panel" data-panel="archi"><h3 class="doc-h">Stack détectée</h3><div class="doc-chips"><span class="doc-chip">Node / JS-TS</span><span class="doc-chip">Rust</span></div><div class="doc-stack-detail"><div><span class="doc-k">Node / JS-TS</span> <span class="doc-v">iakatokencounter-tray · deps: @tauri-apps/api, @tauri-apps/plugin-shell · scripts: dev, build, typecheck, preview, tauri</span></div></div><h3 class="doc-h">Arbre de 1er niveau</h3><ul class="doc-tree"><li class="">.claude/</li><li class="">docs/</li><li class="">iakahub/</li><li class="">iakatc-core/</li><li class="">iakatc-daemon/</li><li class="">scripts/</li><li class="doc-tree-key">specs/</li><li class="doc-tree-key">src/</li><li class="">src-tauri/</li></ul><h3 class="doc-h">Extrait CLAUDE.md</h3><div class="doc-md"><h2>Ce qu'est ce projet</h2><p><strong>iakaTokenCounter</strong> : un <strong>moniteur de consommation IA multi-comptes en tray</strong>. Il</p><p>affiche dans la barre système une <strong>jauge de quota restant par compte IA</strong> (le contingent</p><p>du plan se recharge), alimentée par le <strong>parsing des logs locaux des agents</strong>. Un</p><p><strong>double-clic</strong> ouvre une <strong>app locale d'analytics</strong> (historique/courbes par compte). App</p><p><strong>autonome</strong> (sans dépendance iaka) mais à pertinence maximale dans iakaproject. Le</p><p>comptage de tokens est une <strong>brique interne</strong> (fallback de conso), pas le produit.</p><p>Stack : <strong>multi-OS</strong> (Tauri ou Electron — à trancher), <strong>TypeScript</strong>. Voir <code>specs/PROJET.md</code>.</p><hr><h2>Commandes à utiliser</h2><pre><code>npm run dev          # exécuter en dev (tsx / ts-node)
+npm run build        # compilation TypeScript -&gt; dist/
+npm run test         # tests unitaires
+npm run lint         # eslint
+npm run typecheck    # tsc --noEmit
+bash scripts/quality-report.sh   # rapport qualité consolidé (typecheck + lint + test)</code></pre><p>&lt;!-- Ces commandes seront figées à la 1re instruction dev ; adapter le package.json en</p><p>     conséquence. --&gt;</p><hr></div></section>
+  <section class="doc-panel" data-panel="backlog"><h3 class="doc-h">Fait / reste à faire</h3><div class="doc-cols"><div><h4 class="doc-h4">Reste à faire</h4><div class="doc-note">Aucune issue ouverte.</div></div><div><h4 class="doc-h4">Fait</h4><div class="doc-sub">10 derniers commits</div><ul class="doc-log"><li>663e005 docs(etat-des-lieux): checkpoint jalon MVP + iakahub (5 gates PASS, 94 tests, 36 commits locaux)</li><li>77c9413 docs(specs): backlog - refonte visuelle tray livree (Legolas PASS)</li><li>271e9fc docs(tray): README composition de l'icone + note trademark (usage nominatif)</li><li>5c268f3 feat(popover): barres horizontales (fuel bars, hypothese 1) a la place des jauges</li><li>3dadd6d feat(tray): recompose l'icone (logo + reservoirs du pire compte) a chaque maj</li><li>63da14f feat(tray): module de composition + rasterisation RGBA de l'icone (D2/D3)</li><li>164f78a chore(deps): epingle resvg pour la rasterisation de l'icone de tray</li><li>41208e0 docs(specs): instruction refonte visuelle tray (icone reservoirs + popover barres) + maquettes design</li><li>804215f docs(specs): backlog - iakahub v0 livre (Legolas PASS, broker local)</li><li>43051e3 docs(iakahub): README backbone local + maj README tray (broker 127.0.0.1)</li></ul></div></div><h3 class="doc-h">Git view</h3><div class="doc-kv"><span class="doc-k">Branche</span> <span class="doc-v">main</span></div><div class="doc-sub">15 derniers commits</div><ul class="doc-log"><li>663e005 docs(etat-des-lieux): checkpoint jalon MVP + iakahub (5 gates PASS, 94 tests, 36 commits locaux)</li><li>77c9413 docs(specs): backlog - refonte visuelle tray livree (Legolas PASS)</li><li>271e9fc docs(tray): README composition de l'icone + note trademark (usage nominatif)</li><li>5c268f3 feat(popover): barres horizontales (fuel bars, hypothese 1) a la place des jauges</li><li>3dadd6d feat(tray): recompose l'icone (logo + reservoirs du pire compte) a chaque maj</li><li>63da14f feat(tray): module de composition + rasterisation RGBA de l'icone (D2/D3)</li><li>164f78a chore(deps): epingle resvg pour la rasterisation de l'icone de tray</li><li>41208e0 docs(specs): instruction refonte visuelle tray (icone reservoirs + popover barres) + maquettes design</li><li>804215f docs(specs): backlog - iakahub v0 livre (Legolas PASS, broker local)</li><li>43051e3 docs(iakahub): README backbone local + maj README tray (broker 127.0.0.1)</li><li>a495d17 feat(tray): la GUI spawne le backbone iakahub au lieu du daemon (D4)</li><li>8695eb8 feat(iakahub): broker MQTT local rumqttd + orchestration/supervision daemon</li><li>b644faa docs(specs): archi iakahub (broker MQTT local embarque) + instruction v0 validee</li><li>cc7222e docs(specs): backlog - app analytics livree (Legolas PASS), MVP complet</li><li>c54bd93 docs(analytics): README de la vue historique (source disque, portee provider, refresh)</li></ul><div class="doc-sub">Arbre de travail</div><ul class="doc-status"><li>?? doc/</li></ul><h3 class="doc-h">Issues Forgejo</h3><div class="doc-note">Aucune issue sur Forgejo.</div></section>
+</main>
+<footer class="doc-foot">NAOnEdge · page générée par <code>.portefeuille/docgen.mjs</code> · 2026-07-08</footer>
+<script>(function(){var tabs=document.getElementById('doc-tabs');if(tabs){tabs.addEventListener('click',function(e){var t=e.target.closest('.doc-tab');if(!t)return;var k=t.getAttribute('data-tab');var i,a=document.querySelectorAll('.doc-tab');for(i=0;i<a.length;i++)a[i].classList.toggle('active',a[i].getAttribute('data-tab')===k);var p=document.querySelectorAll('.doc-panel');for(i=0;i<p.length;i++)p[i].classList.toggle('active',p[i].getAttribute('data-panel')===k);});}var root=document.documentElement,KEY='ne-doc-theme';if(!root.getAttribute('data-theme'))root.setAttribute('data-theme','dark');var b=document.getElementById('themeToggle');if(b){b.addEventListener('click',function(){var n=(root.getAttribute('data-theme')==='light')?'dark':'light';root.setAttribute('data-theme',n);try{localStorage.setItem(KEY,n);}catch(e){}});}})();</script>
+</body></html>
