@@ -10,7 +10,7 @@ export type Confidence =
   | "local_estimate"
   | "none";
 
-/** Etat d'une fenetre de quota (5h ou 7d) pour un compte. */
+/** Etat d'une fenetre de quota (5h, 7d ou 30d) pour un compte. */
 export interface WindowState {
   usedPct: number | null;
   remainingPct: number | null;
@@ -23,12 +23,14 @@ export interface WindowState {
   updatedAt: number | null;
 }
 
-/** Une carte de reservoir = un compte IA (provider + account) avec ses deux fenetres. */
+/** Une carte de reservoir = un compte IA (provider + account) avec ses fenetres de quota. */
 export interface ReservoirCard {
   provider: string;
   account: string;
   fiveH: WindowState;
   sevenD: WindowState;
+  /** Fenetre 30 j (plan free Codex) ; vide pour les autres providers. */
+  thirtyD: WindowState;
 }
 
 /** Le pire reservoir (plus petit remaining_pct) — sert au tooltip du tray. */

@@ -18,6 +18,8 @@ import type {
 // qui reutilise la meme barre en tete (quota courant du compte).
 export const FRESHNESS_5H = 1200;
 export const FRESHNESS_7D = 21600;
+// Fenetre 30 j (Codex free) : pas de seuil daemon dedie (MVP), constante tray-side (24 h).
+export const FRESHNESS_30D = 86400;
 
 let onOpenAnalytics: (provider: string, account: string) => void = () => {};
 
@@ -48,7 +50,7 @@ export function shouldRenderGauge(w: WindowState): boolean {
  */
 export function cardUsedTokens(r: ReservoirCard): number | null {
   let max: number | null = null;
-  for (const w of [r.fiveH, r.sevenD]) {
+  for (const w of [r.fiveH, r.sevenD, r.thirtyD]) {
     if (w.usedTokens !== null && (max === null || w.usedTokens > max)) {
       max = w.usedTokens;
     }
@@ -189,6 +191,7 @@ function card(r: ReservoirCard): HTMLElement {
   const candidates: Array<[string, WindowState, number]> = [];
   if (hasWindow(r.fiveH)) candidates.push(["5h", r.fiveH, FRESHNESS_5H]);
   if (hasWindow(r.sevenD)) candidates.push(["7j", r.sevenD, FRESHNESS_7D]);
+  if (hasWindow(r.thirtyD)) candidates.push(["30j", r.thirtyD, FRESHNESS_30D]);
   // Jauges = uniquement les fenetres portant un vrai quota (remainingPct non null).
   const gaugeWindows = candidates.filter(([, w]) => shouldRenderGauge(w));
   const used = cardUsedTokens(r);
