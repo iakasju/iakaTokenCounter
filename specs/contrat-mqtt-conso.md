@@ -78,6 +78,7 @@ iakatokencounter/
 │           │   ├── confidence/current               (string, voir § 3.3)
 │           │   └── source/current                   (string, voir § 3.3)
 │           ├── quota/7d/  … (MÊMES codes que 5h)
+│           ├── quota/30d/ … (MÊMES codes que 5h ; extension additive v1.1, Codex free seul)
 │           └── limits/
 │               ├── ceiling_5h_tokens/current        (number | null)
 │               └── ceiling_7d_tokens/current        (number | null)
@@ -102,6 +103,12 @@ iakatokencounter/
 > persona. Seule distinction mesurable = **coordinateur vs sous-agent délégué** (`isSidechain`),
 > déjà calculée par `economy.rs`. Codex n'a pas de sidechain → `{agent} = coordinator`.
 
+> **`{window}` (extension additive v1.1)** : vocabulaire = **`{5h | 7d | 30d}`**. La fenêtre
+> `30d` est **émise uniquement par le plan free Codex** (le rate-limit rollout porte
+> `window_minutes = 43200`) ; Claude reste `5h`/`7d`. C'est une **extension non-breaking** :
+> le format de payload `{v, t}` est **inchangé**, la souscription `.../quota/#` couvre déjà
+> `30d`, un ancien subscriber l'ignore et un ancien daemon ne l'émet jamais. Pas de bump v2.
+
 ### Exemples de topics feuilles pleins (concrets)
 
 | Besoin | Topic (code) | Payload |
@@ -110,6 +117,7 @@ iakatokencounter/
 | Quota 5 h **utilisé** (compte Claude Max) | `iakatokencounter/all/ia/claude/max/quota/5h/used_pct/current` | `{"v":12.5,"t":1751894400}` |
 | Recharge de la fenêtre 5 h | `iakatokencounter/all/ia/claude/max/quota/5h/resets_at/current` | `{"v":1751864400,"t":1751894400}` |
 | Confiance de la mesure 5 h | `iakatokencounter/all/ia/claude/max/quota/5h/confidence/current` | `{"v":"official","t":1751894400}` |
+| Quota **30 j restant** (Codex free) | `iakatokencounter/all/ia/codex/default/quota/30d/remaining_pct/current` | `{"v":37,"t":1751894400}` |
 | **input** tokens du projet `iakaTokenCounter` par le coordinateur | `iakatokencounter/all/projets/agents/iakaTokenCounter/coordinator/conso/input_tokens/current` | `{"v":90000,"t":1751894400}` |
 | **used** tokens des sous-agents sur `IakaCockpit` | `iakatokencounter/all/projets/agents/IakaCockpit/subagent/conso/used_tokens/current` | `{"v":123456,"t":1751894400}` |
 | **used** tokens totaux attribués à Codex | `iakatokencounter/all/ia/agents/codex/coordinator/conso/used_tokens/current` | `{"v":45000,"t":1751894400}` |
