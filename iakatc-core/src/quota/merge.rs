@@ -21,18 +21,23 @@ use std::collections::{BTreeSet, HashMap};
 pub enum Window {
     FiveHour,
     SevenDay,
+    /// Fenetre 30 j : **uniquement** alimentee par le plan free Codex (via [`codex_window`]).
+    /// Volontairement absente de [`Window::all`] pour ne pas creer de 30d parasite chez Claude.
+    ThirtyDay,
 }
 
 impl Window {
-    /// Code de fenetre publie dans les topics (`5h` / `7d`).
+    /// Code de fenetre publie dans les topics (`5h` / `7d` / `30d`).
     pub fn code(self) -> &'static str {
         match self {
             Window::FiveHour => "5h",
             Window::SevenDay => "7d",
+            Window::ThirtyDay => "30d",
         }
     }
 
-    /// Les deux fenetres, dans l'ordre stable de publication.
+    /// Les fenetres iterees pour **tout** `(provider, account)` par [`merge`]. `ThirtyDay` en est
+    /// exclue : elle n'est emise que par le chemin Codex ([`codex_reservoirs`]), jamais generiquement.
     pub fn all() -> [Window; 2] {
         [Window::FiveHour, Window::SevenDay]
     }
@@ -97,7 +102,8 @@ pub struct Reservoir {
 fn freshness_seconds(config: &Config, window: Window) -> i64 {
     match window {
         Window::FiveHour => config.freshness.five_hour_seconds,
-        Window::SevenDay => config.freshness.seven_day_seconds,
+        // `ThirtyDay` ne passe jamais par les branches fichier-quota (Codex-only) ; repli 7d.
+        Window::SevenDay | Window::ThirtyDay => config.freshness.seven_day_seconds,
     }
 }
 
@@ -107,6 +113,8 @@ fn ceiling_tokens(config: &Config, provider: &str, account: &str, window: Window
     match window {
         Window::FiveHour => c.five_hour_tokens,
         Window::SevenDay => c.seven_day_tokens,
+        // Pas de plafond configure pour 30d (Codex-only, quota officiel via rollout).
+        Window::ThirtyDay => None,
     }
 }
 
@@ -115,6 +123,8 @@ fn window_quota(file: &QuotaFile, window: Window) -> Option<&super::store::Windo
     match window {
         Window::FiveHour => file.rate_limits.five_hour.as_ref(),
         Window::SevenDay => file.rate_limits.seven_day.as_ref(),
+        // Aucun champ fichier-quota 30d (Codex-only).
+        Window::ThirtyDay => None,
     }
 }
 
@@ -232,11 +242,13 @@ pub fn merge(
 }
 
 /// Mappe une `window_minutes` Codex sur une fenetre du contrat, avec tolerance. Renvoie `None`
-/// si la fenetre ne correspond ni a 5h ni a 7d (cas du plan free : 43200 min = 30 j -> `None`).
+/// si la fenetre ne correspond a aucune bande connue (5h / 7d / 30d). Les bandes ne se chevauchent
+/// pas (5h : 240–360 ; 7d : 8640–11520 ; 30d : 40320–44640, centre 43200 = 30 x 1440).
 pub fn codex_window(window_minutes: u64) -> Option<Window> {
     match window_minutes {
-        240..=360 => Some(Window::FiveHour),   // ~5 h (300 min +/- tolerance)
-        8640..=11520 => Some(Window::SevenDay), // ~7 j (10080 min +/- tolerance)
+        240..=360 => Some(Window::FiveHour),     // ~5 h (300 min +/- tolerance)
+        8640..=11520 => Some(Window::SevenDay),  // ~7 j (10080 min +/- tolerance)
+        40320..=44640 => Some(Window::ThirtyDay), // ~30 j (43200 min, 28–31 j de tolerance)
         _ => None,
     }
 }
@@ -380,7 +392,17 @@ mod tests {
     fn codex_window_mappe_ou_none() {
         assert_eq!(codex_window(300), Some(Window::FiveHour));
         assert_eq!(codex_window(10080), Some(Window::SevenDay));
-        assert_eq!(codex_window(43200), None); // plan free 30 j -> non publie
+        assert_eq!(codex_window(43200), Some(Window::ThirtyDay)); // plan free 30 j
+        assert_eq!(codex_window(500), None); // hors bandes
+    }
+
+    #[test]
+    fn window_thirty_day_a_le_code_30d_mais_pas_dans_all() {
+        assert_eq!(Window::ThirtyDay.code(), "30d");
+        assert!(
+            !Window::all().contains(&Window::ThirtyDay),
+            "ThirtyDay ne doit pas etre iteree generiquement (pas de 30d parasite Claude)"
+        );
     }
 
     #[test]
@@ -393,7 +415,7 @@ mod tests {
             },
             CodexRateLimit {
                 used_percent: 7.0,
-                window_minutes: 43200, // 30 j -> ignore
+                window_minutes: 999_999, // hors bande -> ignore
                 resets_at: Some(999),
             },
         ];
@@ -404,5 +426,40 @@ mod tests {
         assert_eq!(r[0].confidence, Confidence::Official);
         assert_eq!(r[0].used_pct, Some(12.0));
         assert_eq!(r[0].used_tokens, Some(1234));
+    }
+
+    #[test]
+    fn codex_reservoirs_free_produit_une_jauge_30d() {
+        // Plan free : une seule bande a 43200 min (30 j) avec used_percent + resets_at.
+        let rl = vec![CodexRateLimit {
+            used_percent: 63.0,
+            window_minutes: 43200,
+            resets_at: Some(1_700_000_000),
+        }];
+        let r = codex_reservoirs("default", &rl, Some(26894), 0);
+        assert_eq!(r.len(), 1, "exactement 1 reservoir 30d");
+        assert_eq!(r[0].window, Window::ThirtyDay);
+        assert_eq!(r[0].source, Some(Source::CodexRollout));
+        assert_eq!(r[0].confidence, Confidence::Official);
+        assert_eq!(r[0].used_pct, Some(63.0));
+        assert_eq!(r[0].remaining_pct, Some(37.0)); // 100 - used
+        assert_eq!(r[0].resets_at, Some(1_700_000_000));
+        assert_eq!(r[0].used_tokens, Some(26894));
+    }
+
+    #[test]
+    fn merge_provider_mesure_ne_produit_que_5h_7d() {
+        // Un provider mesure sans fichier quota (branche 4) : jamais de 30d parasite.
+        let now = 1000;
+        let mut measured = HashMap::new();
+        measured.insert("claude".to_string(), 4242u64);
+        let r = merge(&[], &Config::default(), &measured, now);
+        let windows: Vec<Window> = r.iter().map(|x| x.window).collect();
+        assert!(windows.contains(&Window::FiveHour));
+        assert!(windows.contains(&Window::SevenDay));
+        assert!(
+            !windows.contains(&Window::ThirtyDay),
+            "merge() ne doit jamais emettre 30d (coherence Claude)"
+        );
     }
 }
