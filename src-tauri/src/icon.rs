@@ -127,6 +127,17 @@ fn bar_from(w: &WindowState, y: f64) -> Bar {
 /// Construit le modele d'icone d'un compte. Repli 1 barre (y=6.5) si une seule fenetre presente ;
 /// sinon 5h a y=3 et 7j a y=10.
 fn model_for(card: &ReservoirCard) -> IconModel {
+    // Cas Codex free : seule la fenetre 30j porte un vrai quota (5h/7d mesures sans jauge).
+    // On evite alors deux barres « inconnu » trompeuses et on rend la seule jauge 30j (repli 1 barre).
+    if card.thirty_d.remaining_pct.is_some()
+        && card.five_h.remaining_pct.is_none()
+        && card.seven_d.remaining_pct.is_none()
+    {
+        return IconModel {
+            provider: card.provider.clone(),
+            bars: vec![bar_from(&card.thirty_d, 6.5)],
+        };
+    }
     let five = has_window(&card.five_h);
     let seven = has_window(&card.seven_d);
     let bars = match (five, seven) {
@@ -151,7 +162,7 @@ fn model_for(card: &ReservoirCard) -> IconModel {
 /// Plus petit `remaining_pct` connu du compte (toutes fenetres confondues), `None` si tout inconnu.
 fn card_min_remaining(c: &ReservoirCard) -> Option<f64> {
     let mut m: Option<f64> = None;
-    for w in [&c.five_h, &c.seven_d] {
+    for w in [&c.five_h, &c.seven_d, &c.thirty_d] {
         if let Some(p) = w.remaining_pct {
             m = Some(m.map_or(p, |cur: f64| cur.min(p)));
         }
@@ -311,6 +322,7 @@ mod tests {
             account: "x".to_string(),
             five_h: five,
             seven_d: seven,
+            thirty_d: WindowState::default(),
         }
     }
 
@@ -372,6 +384,22 @@ mod tests {
         assert_eq!(m2.bars.len(), 2);
         assert_eq!(m2.bars[0].y, 3.0);
         assert_eq!(m2.bars[1].y, 10.0);
+    }
+
+    #[test]
+    fn codex_free_rend_une_barre_30j() {
+        // 5h/7d mesures sans jauge (branche 4), 30j = seule vraie jauge.
+        let mut c = card(
+            "codex",
+            ws(None, Some("none"), true),
+            ws(None, Some("none"), true),
+        );
+        c.thirty_d = ws(Some(37.0), Some("official"), true);
+        let m = model_for(&c);
+        assert_eq!(m.bars.len(), 1, "une seule barre : la jauge 30j");
+        assert_eq!(m.bars[0].y, 6.5);
+        // La jauge 30j alimente aussi la selection du pire compte.
+        assert_eq!(card_min_remaining(&c), Some(37.0));
     }
 
     #[test]

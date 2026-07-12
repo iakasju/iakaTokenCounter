@@ -21,6 +21,8 @@ use std::sync::Mutex;
 pub enum Window {
     FiveHour,
     SevenDay,
+    /// Fenetre 30 j : plan free Codex (extension additive du contrat, cf. § 2 v1.1).
+    ThirtyDay,
 }
 
 impl Window {
@@ -28,6 +30,7 @@ impl Window {
         match s {
             "5h" => Some(Window::FiveHour),
             "7d" => Some(Window::SevenDay),
+            "30d" => Some(Window::ThirtyDay),
             _ => None,
         }
     }
@@ -76,6 +79,8 @@ pub struct ReservoirCard {
     pub account: String,
     pub five_h: WindowState,
     pub seven_d: WindowState,
+    /// Fenetre 30 j (Codex free) — vide pour les autres providers.
+    pub thirty_d: WindowState,
 }
 
 /// Pire reservoir (plus petit remaining_pct connu) — sert au tooltip du tray.
@@ -100,6 +105,7 @@ pub struct StateSnapshot {
 struct Card {
     five_h: WindowState,
     seven_d: WindowState,
+    thirty_d: WindowState,
 }
 
 /// Store des cartes, indexe par `(provider, account)` (ordonne pour un rendu stable).
@@ -110,7 +116,7 @@ pub struct ReservoirStore {
 
 /// Decompose un topic de quota en `(provider, account, window, code)`.
 ///
-/// Attendu : `{root}/all/ia/{provider}/{account}/quota/{5h|7d}/{code}/current`.
+/// Attendu : `{root}/all/ia/{provider}/{account}/quota/{5h|7d|30d}/{code}/current`.
 /// Tout ce qui ne colle pas (conso, meta, suffixe != current) renvoie `None`.
 fn parse_quota_topic(root: &str, topic: &str) -> Option<(String, String, Window, String)> {
     let prefix = format!("{root}/all/ia/");
@@ -156,6 +162,7 @@ impl ReservoirStore {
         let ws = match window {
             Window::FiveHour => &mut card.five_h,
             Window::SevenDay => &mut card.seven_d,
+            Window::ThirtyDay => &mut card.thirty_d,
         };
         ws.set_code(&code, &v, t)
     }
@@ -169,6 +176,7 @@ impl ReservoirStore {
                 account: account.clone(),
                 five_h: c.five_h.clone(),
                 seven_d: c.seven_d.clone(),
+                thirty_d: c.thirty_d.clone(),
             })
             .collect()
     }
@@ -177,7 +185,11 @@ impl ReservoirStore {
     pub fn worst(&self) -> Option<Worst> {
         let mut worst: Option<Worst> = None;
         for ((provider, account), c) in &self.cards {
-            for (win, ws) in [("5h", &c.five_h), ("7d", &c.seven_d)] {
+            for (win, ws) in [
+                ("5h", &c.five_h),
+                ("7d", &c.seven_d),
+                ("30d", &c.thirty_d),
+            ] {
                 if let Some(pct) = ws.remaining_pct {
                     if worst.as_ref().is_none_or(|w| pct < w.remaining_pct) {
                         worst = Some(Worst {
@@ -406,6 +418,49 @@ mod tests {
         let w = s.worst().expect("un pire reservoir existe");
         assert_eq!(w.remaining_pct, 12.0);
         assert_eq!(w.label, "claude max 5h");
+    }
+
+    #[test]
+    fn from_code_apprend_30d() {
+        assert_eq!(Window::from_code("30d"), Some(Window::ThirtyDay));
+        assert_eq!(Window::from_code("5h"), Some(Window::FiveHour));
+        assert_eq!(Window::from_code("7d"), Some(Window::SevenDay));
+        assert_eq!(Window::from_code("99y"), None);
+    }
+
+    #[test]
+    fn topic_30d_alimente_thirty_d() {
+        let mut s = ReservoirStore::new();
+        assert!(apply(
+            &mut s,
+            "iakatokencounter/all/ia/codex/default/quota/30d/remaining_pct/current",
+            "37",
+        ));
+        let cards = s.cards();
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].provider, "codex");
+        assert_eq!(cards[0].thirty_d.remaining_pct, Some(37.0));
+        // Les autres fenetres restent vides pour ce compte.
+        assert_eq!(cards[0].five_h.remaining_pct, None);
+        assert_eq!(cards[0].seven_d.remaining_pct, None);
+    }
+
+    #[test]
+    fn pire_reservoir_peut_etre_porte_par_30d() {
+        let mut s = ReservoirStore::new();
+        apply(
+            &mut s,
+            "iakatokencounter/all/ia/claude/max/quota/5h/remaining_pct/current",
+            "80",
+        );
+        apply(
+            &mut s,
+            "iakatokencounter/all/ia/codex/default/quota/30d/remaining_pct/current",
+            "15",
+        );
+        let w = s.worst().expect("un pire reservoir existe");
+        assert_eq!(w.remaining_pct, 15.0);
+        assert_eq!(w.label, "codex default 30d");
     }
 
     #[test]
