@@ -1,11 +1,10 @@
 # État des lieux — 2026-07-12
 
 ## En une phrase
-La feature **visibilité conso/quota Codex** (leviers A + B) est **implémentée et validée
-qualité** (Legolas PASS : 101 tests verts, clippy 0 warning, typecheck vert) ; un **nouveau
-bundle `.app` est buildé et lancé** depuis `target/release/bundle/macos/` — en attente du
-**verdict visuel du décideur** (seul gate non automatisable) avant install `/Applications`.
-7 commits d'avance sur `origin/main` (non poussés).
+La feature **visibilité conso/quota Codex** (leviers A + B) est **livrée et en service** :
+qualité Legolas PASS (101 tests verts, clippy 0, typecheck vert), **test réel validé par le
+décideur**, nouveau bundle **installé dans `/Applications`** et relancé. Reste la sauvegarde
+distante (commits non poussés).
 
 ## Fait récemment
 - **Diagnostic Codex** (reprise du point d'attention « quota Codex fenêtre 30j non mappée ») :
@@ -31,22 +30,20 @@ bundle `.app` est buildé et lancé** depuis `target/release/bundle/macos/` — 
   non bloquant (distribution par `.app`).
 
 ## En cours
-- **Test réel en attente** : nouveau bundle lancé depuis `target/release/bundle/macos/iakaTokenCounter.app` ;
-  le décideur doit valider de visu la carte Codex (conso + jauge `30j`), le double-clic → analytics,
-  et la non-régression Claude. Branche `main` propre.
+- Rien en développement actif. Feature Codex A+B **bouclée** (validée + installée). Branche
+  `main` propre.
 
 ## Jalons (gates)
 | Jalon | Statut |
 |---|---|
 | Instruction cadrée | oui (`feature-codex-visibilite-quota.md`, A+B) |
 | Tests verts | oui (101 : core + daemon + iakahub + tray ; clippy + typecheck verts) |
-| Recette stage | **attendue** (build lancé ; validation visuelle humaine en attente) |
+| Recette stage | **oui** (test réel validé décideur + bundle installé dans `/Applications` + relancé) |
 | Feu vert prod | non applicable (produit local ; pas de squad Helm engagé) |
 
 ## Prochaine étape
-**Recueillir le verdict visuel de Stéphane** sur le bundle en cours d'exécution (carte Codex
-conso + jauge `30j`, double-clic analytics, jauges Claude 5h/7j intactes). Si OK : installer le
-bundle dans `/Applications` (remplacement de l'ancien) puis checkpoint « update iakaframe ».
+**Push Forgejo** des commits d'avance (sauvegarde distante) — sous réserve d'un token
+`write:repository` valide. Ensuite : choisir une suite de vision, ou éponger la dette légère.
 
 ## Points d'attention
 - **Gate humain non automatisable** : le levier A (rendu TS) n'a **aucun test auto** (pas de
@@ -62,6 +59,10 @@ bundle dans `/Applications` (remplacement de l'ancien) puis checkpoint « update
   par `.app` en attendant ; CI multi-OS + notarisation toujours non faits.
 
 ## Journal de reprise
+- **2026-07-12 (clôture)** — Test réel **validé par le décideur** (carte Codex conso + jauge
+  `30j`, double-clic analytics, Claude sans régression) → bundle **installé dans `/Applications`**
+  et relancé (chemin `statusLine` inchangé, capture Claude préservée). Feature Codex A+B **en
+  service**. Reste : push Forgejo (token à re-vérifier).
 - **2026-07-12** — Feature **visibilité conso/quota Codex (A+B)**. Diagnostic : plan Codex **free**
   → fenêtre 30 j (`43200 min`) non mappée sur 5h/7j → carte vide + analytics inatteignable (double-clic
   branché sur la carte de quota). Cadrage Gandalf (A = rendu conso-only ; B = `Window::ThirtyDay`),
