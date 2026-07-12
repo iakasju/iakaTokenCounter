@@ -112,6 +112,34 @@ body {
   letter-spacing: 0.05em;
 }
 
+/* Ligne de conso (used_tokens) : rendue meme sans jauge de quota. */
+.acard-conso {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.acard-conso-lbl {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+.acard-conso-val {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* Empty-state honnete : aucun quota exploitable (ex. Codex free avant jauge 30j). */
+.acard-noquota {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 4px 0 2px;
+}
+
 /* Une barre-reservoir = entete (gh) + piste (h1-track). */
 .h1-row + .h1-row {
   margin-top: 9px;

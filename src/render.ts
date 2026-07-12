@@ -37,6 +37,32 @@ function hasWindow(w: WindowState): boolean {
   return w.updatedAt !== null;
 }
 
+/** Une fenetre porte une **vraie jauge de quota** (donc une barre a rendre) ssi elle a un `remainingPct`. */
+export function shouldRenderGauge(w: WindowState): boolean {
+  return w.remainingPct !== null;
+}
+
+/**
+ * Conso portee par la carte : `usedTokens` maximal non-null parmi ses fenetres. Pour la branche 4
+ * (mesure sans quota) toutes les fenetres portent la meme valeur ; ailleurs on garde la plus grande.
+ */
+export function cardUsedTokens(r: ReservoirCard): number | null {
+  let max: number | null = null;
+  for (const w of [r.fiveH, r.sevenD]) {
+    if (w.usedTokens !== null && (max === null || w.usedTokens > max)) {
+      max = w.usedTokens;
+    }
+  }
+  return max;
+}
+
+/** Formate un nombre de tokens de facon compacte (`26894 -> "26.9k"`, `1_500_000 -> "1.5M"`). */
+export function formatTokens(n: number): string {
+  if (n < 1000) return `${n}`;
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
 /** Une fenetre est perimee si sa derniere valeur est trop vieille ou si la recharge est passee. */
 function isStale(w: WindowState, freshness: number): boolean {
   const now = nowS();
@@ -153,20 +179,19 @@ export function gauge(title: string, w: WindowState, freshness: number): HTMLEle
   return row;
 }
 
-/** Rend une carte de compte : entete + 1 barre (repli) ou 2 barres (5h / 7j). */
+/** Rend une carte de compte : entete + jauges (fenetres a quota) + ligne de conso / empty-state. */
 function card(r: ReservoirCard): HTMLElement {
   const el = document.createElement("section");
   el.className = "acard";
-  el.title = "double-clic : analytics (a venir)";
+  el.title = "double-clic : analytics";
 
-  // Fenetres presentes → repli 1 barre si une seule.
-  const windows: Array<[string, WindowState, number]> = [];
-  if (hasWindow(r.fiveH)) windows.push(["5h", r.fiveH, FRESHNESS_5H]);
-  if (hasWindow(r.sevenD)) windows.push(["7j", r.sevenD, FRESHNESS_7D]);
-  // Si aucune fenetre horodatee (cas limite), on montre quand meme les deux en « inconnu ».
-  if (windows.length === 0) {
-    windows.push(["5h", r.fiveH, FRESHNESS_5H], ["7j", r.sevenD, FRESHNESS_7D]);
-  }
+  // Fenetres candidates = celles ayant recu de la donnee.
+  const candidates: Array<[string, WindowState, number]> = [];
+  if (hasWindow(r.fiveH)) candidates.push(["5h", r.fiveH, FRESHNESS_5H]);
+  if (hasWindow(r.sevenD)) candidates.push(["7j", r.sevenD, FRESHNESS_7D]);
+  // Jauges = uniquement les fenetres portant un vrai quota (remainingPct non null).
+  const gaugeWindows = candidates.filter(([, w]) => shouldRenderGauge(w));
+  const used = cardUsedTokens(r);
 
   const header = document.createElement("header");
   header.className = "acard-head";
@@ -179,12 +204,38 @@ function card(r: ReservoirCard): HTMLElement {
   name.appendChild(plan);
   const tier = document.createElement("span");
   tier.className = "acard-tier";
-  tier.textContent = windows.length > 1 ? "2 fenetres" : "1 fenetre";
+  tier.textContent =
+    gaugeWindows.length === 0
+      ? "conso seule"
+      : `${gaugeWindows.length} jauge${gaugeWindows.length > 1 ? "s" : ""}`;
   header.append(name, tier);
   el.appendChild(header);
 
-  for (const [title, w, freshness] of windows) {
+  // Ligne de conso : rendue des qu'une fenetre porte un `usedTokens`.
+  if (used !== null) {
+    const conso = document.createElement("div");
+    conso.className = "acard-conso";
+    const lbl = document.createElement("span");
+    lbl.className = "acard-conso-lbl";
+    lbl.textContent = "conso";
+    const val = document.createElement("span");
+    val.className = "acard-conso-val";
+    val.textContent = `${formatTokens(used)} tokens`;
+    conso.append(lbl, val);
+    el.appendChild(conso);
+  }
+
+  // Jauges de quota (aucune si le provider est mesure sans quota exploitable).
+  for (const [title, w, freshness] of gaugeWindows) {
     el.appendChild(gauge(title, w, freshness));
+  }
+
+  // Empty-state honnete : aucun quota exploitable, mais la carte reste ouvrable (analytics).
+  if (gaugeWindows.length === 0) {
+    const nq = document.createElement("div");
+    nq.className = "acard-noquota";
+    nq.textContent = "pas de jauge de quota disponible";
+    el.appendChild(nq);
   }
 
   el.addEventListener("dblclick", () => onOpenAnalytics(r.provider, r.account));
