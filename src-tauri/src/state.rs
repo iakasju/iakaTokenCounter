@@ -16,6 +16,8 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
+use crate::memory::MemoryLog;
+
 /// Fenetre de quota consommee par la GUI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Window {
@@ -211,6 +213,8 @@ pub struct AppState {
     pub daemon_available: AtomicBool,
     /// Enfant du daemon spawne en sidecar (tue a la fermeture de la GUI, D1).
     pub daemon_child: Mutex<Option<tauri_plugin_shell::process::CommandChild>>,
+    /// Log memoire persistant (chemin resolu au `setup`). Le `Mutex` serialise sampler vs commande.
+    pub memory: Mutex<MemoryLog>,
 }
 
 impl Default for AppState {
@@ -220,6 +224,8 @@ impl Default for AppState {
             broker_connected: AtomicBool::new(false),
             daemon_available: AtomicBool::new(false),
             daemon_child: Mutex::new(None),
+            // Chemin resolu au `setup` via `app_data_dir` (cf. lib.rs) ; vide avant.
+            memory: Mutex::new(MemoryLog::default()),
         }
     }
 }

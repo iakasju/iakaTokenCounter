@@ -12,12 +12,24 @@
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
+use tauri::{AppHandle, Emitter, Manager};
+
+use crate::state::AppState;
 
 /// Nom du fichier d'historique persistant, joint au repertoire de donnees de l'app.
 pub const HISTORY_FILE: &str = "memory-history.jsonl";
+
+/// Nom d'evenement pousse a la webview a chaque nouvel echantillon memoire (croissance live).
+pub const MEMORY_EVENT: &str = "tray://memory";
+
+/// Cadence d'echantillonnage : 1 point / 60 s (stockage => cadence plus lache que du live).
+const SAMPLE_INTERVAL_SECS: u64 = 60;
+
+/// Compaction (troncature de la fenetre) toutes les N ecritures (~1 h a 60 s).
+const COMPACT_EVERY: u64 = 60;
 
 /// Retention glissante de l'historique : 24 h (=> <= 1440 points a 60 s).
 pub const RETENTION_SECS: i64 = 86_400;
@@ -56,6 +68,10 @@ impl From<Line> for MemorySample {
 }
 
 /// Pourcentage d'utilisation `used / total * 100`. Garde-fou : `total == 0 => 0.0`.
+///
+/// Helper **pur et testable** cote Rust (garde-fou du ratio). Le `%` affiche est recalcule
+/// cote webview (presentation), d'ou l'`allow(dead_code)` : la prod ne l'appelle pas directement.
+#[allow(dead_code)]
 pub fn used_pct(used: u64, total: u64) -> f64 {
     if total == 0 {
         0.0
@@ -139,10 +155,75 @@ pub fn compact(path: &Path, retention_secs: i64, now: i64) -> std::io::Result<()
     Ok(())
 }
 
+/// Etat du log memoire porte par `AppState` : chemin resolu du fichier JSONL persistant. Le `Mutex`
+/// qui l'enveloppe **serialise** les acces entre le thread sampler (ecrit) et la commande (lit).
+#[derive(Debug, Default)]
+pub struct MemoryLog {
+    pub path: PathBuf,
+}
+
+impl MemoryLog {
+    /// Construit le log a partir du repertoire de donnees de l'app (joint le nom de fichier).
+    pub fn in_dir(dir: &Path) -> Self {
+        MemoryLog { path: dir.join(HISTORY_FILE) }
+    }
+}
+
+/// Lance le sampler RAM dans un **thread detache** (patron `mqtt_sub::start`). Ne bloque pas ;
+/// **ne panique jamais** (toute erreur I/O est loggee et la boucle continue). Detache => meurt avec
+/// le process (aucun handling `Exit` requis).
+pub fn start_sampler(app: AppHandle) {
+    std::thread::spawn(move || run_sampler(app));
+}
+
+fn run_sampler(app: AppHandle) {
+    let path = {
+        let state = app.state::<AppState>();
+        let log = state.memory.lock().unwrap();
+        log.path.clone()
+    };
+    // Compaction au demarrage : borne le fichier des le lancement (execution continue sur des jours).
+    {
+        let state = app.state::<AppState>();
+        let _guard = state.memory.lock().unwrap();
+        if let Err(e) = compact(&path, RETENTION_SECS, now_secs()) {
+            eprintln!("[iakatc-tray] compaction memoire initiale echouee: {e}");
+        }
+    }
+    let mut writes: u64 = 0;
+    loop {
+        // Un premier echantillon est pris immediatement (point rapide apres lancement).
+        let sample = read_sample();
+        {
+            let state = app.state::<AppState>();
+            let _guard = state.memory.lock().unwrap();
+            if let Err(e) = append_sample(&path, &sample) {
+                eprintln!("[iakatc-tray] append echantillon memoire echoue: {e}");
+            }
+            writes = writes.wrapping_add(1);
+            if writes.is_multiple_of(COMPACT_EVERY) {
+                if let Err(e) = compact(&path, RETENTION_SECS, now_secs()) {
+                    eprintln!("[iakatc-tray] compaction memoire echouee: {e}");
+                }
+            }
+        }
+        // Croissance live sans polling : la fenetre de details ecoute cet evenement.
+        let _ = app.emit(MEMORY_EVENT, &sample);
+        std::thread::sleep(Duration::from_secs(SAMPLE_INTERVAL_SECS));
+    }
+}
+
+/// Commande : historique memoire persistant de la fenetre de retention, trie par `t` croissant.
+/// Aucun parametre (la retention borne deja la taille). Fichier absent -> serie vide (defensif).
+#[tauri::command]
+pub fn get_memory_history(state: tauri::State<'_, AppState>) -> Vec<MemorySample> {
+    let log = state.memory.lock().unwrap();
+    read_history(&log.path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     /// Dossier temporaire unique pour un test, avec le fichier d'historique dedans.
     fn tmp_history(name: &str) -> PathBuf {

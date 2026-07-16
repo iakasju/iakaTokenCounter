@@ -28,7 +28,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             state::get_reservoirs,
             state::open_analytics,
-            history::get_history
+            history::get_history,
+            memory::get_memory_history
         ])
         .setup(move |app| {
             // macOS : app tray-only. Politique d'activation `Accessory` (equiv. LSUIElement) =>
@@ -51,6 +52,21 @@ pub fn run() {
 
             // D2 : subscriber MQTT dans un thread dedie (jamais de MQTT dans la webview).
             mqtt_sub::start(handle.clone(), cfg.clone());
+
+            // Moniteur memoire (feature-detail-memory-monitor) : resout le fichier persistant dans
+            // le repertoire de donnees de l'app (cree au besoin) puis lance le sampler RAM continu
+            // dans un thread detache. Echantillonne meme fenetre fermee ; l'historique survit a un
+            // redemarrage. Echec de resolution = pas de crash (le sampler saute).
+            if let Ok(data_dir) = handle.path().app_data_dir() {
+                if let Err(e) = std::fs::create_dir_all(&data_dir) {
+                    eprintln!("[iakatc-tray] creation du repertoire de donnees echouee: {e}");
+                }
+                *handle.state::<AppState>().memory.lock().unwrap() =
+                    memory::MemoryLog::in_dir(&data_dir);
+                memory::start_sampler(handle.clone());
+            } else {
+                eprintln!("[iakatc-tray] app_data_dir indisponible — sampler memoire desactive.");
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
