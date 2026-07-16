@@ -29,3 +29,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 # Coeur de mesure (lecture d'activite read-only pour la commande get_history, D2/D3).
 iakatc-core = { path = "../iakatc-core" }
+# Info systeme (RAM) pour la courbe de monitoring memoire persistante (feature-detail-memory-monitor).
+# Cross-OS macOS/Windows/Linux. `default-features = false` + `features = ["system"]` : on lit la
+# memoire seule, sans enumeration des process (couteuse et gourmande en RAM sur macOS) ni multi-thread.
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
