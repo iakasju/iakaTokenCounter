@@ -79,3 +79,17 @@ export interface HistoryPayload {
   activity: ProjectActivity[];
   economy: ProjectEconomy[];
 }
+
+// ---- Moniteur memoire (fenetre de details, commande `get_memory_history` + event `tray://memory`) ----
+// Metrique systeme orthogonale au produit : % RAM (used/total) du poste, echantillonnee en continu
+// par le process tray et persistee (JSONL borne 24 h). Miroir du type Rust `memory::MemorySample`.
+
+/** Un echantillon memoire instantane (miroir Rust `MemorySample`, serialise camelCase). */
+export interface MemorySample {
+  /** Epoch en secondes. */
+  t: number;
+  /** RAM reellement utilisee (octets, hors cache/buffers). */
+  usedBytes: number;
+  /** RAM totale du poste (octets). */
+  totalBytes: number;
+}
