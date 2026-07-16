@@ -3,7 +3,7 @@
 // de charting. Presentationnel pur : on recoit les series `iatc-core` (ProjectActivity /
 // ProjectEconomy) et on rend du SVG/DOM. Aucun I/O, aucun MQTT. Empty-state honnete si serie vide.
 
-import type { DayTokens, ProjectActivity, ProjectEconomy } from "./types";
+import type { DayTokens, MemorySample, ProjectActivity, ProjectEconomy } from "./types";
 
 const SVGNS = "http://www.w3.org/2000/svg";
 const DAY_MS = 86_400_000;
@@ -281,6 +281,114 @@ function statBox(value: string, label: string): HTMLElement {
   const box = el("div", "split-stat");
   box.append(el("b", undefined, value), document.createTextNode(` ${label}`));
   return box;
+}
+
+// ============================ Moniteur memoire (line chart % RAM) ============================
+
+/** Formate des octets en Go decimaux (« 9,8 Go »). Pur. */
+export function fmtGb(bytes: number): string {
+  return `${(bytes / 1e9).toFixed(1).replace(".", ",")} Go`;
+}
+
+/** `hh:mm` local d'un epoch en secondes. Pur. */
+function fmtHm(epochSecs: number): string {
+  const d = new Date(epochSecs * 1000);
+  const p2 = (n: number): string => String(n).padStart(2, "0");
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+/**
+ * Line chart SVG « maison » du % RAM (used/total) dans le temps. Axe Y **fixe 0–100 %** (borne
+ * stable, comparable entre postes), axe X = temps de la fenetre (labels `hh:mm`). Readout courant
+ * `% · Go` + tooltips `<title>` par point. Empty-state si `< 2` points. Pur (aucun I/O).
+ */
+export function memoryChart(samples: readonly MemorySample[]): HTMLElement {
+  const section = el("section", "viz viz-memory");
+
+  if (samples.length < 2) {
+    section.append(
+      emptyState(
+        "Aucun echantillon memoire pour l'instant",
+        "La courbe apparaitra apres quelques mesures (une toutes les 60 s).",
+      ),
+    );
+    return section;
+  }
+
+  const pct = (s: MemorySample): number =>
+    s.totalBytes > 0 ? (s.usedBytes / s.totalBytes) * 100 : 0;
+
+  // Readout courant (dernier point) : « 62 % · 9,8 / 16 Go ».
+  const last = samples[samples.length - 1];
+  section.append(
+    el(
+      "div",
+      "viz-mem-readout",
+      `${Math.round(pct(last))} % · ${fmtGb(last.usedBytes)} / ${fmtGb(last.totalBytes)}`,
+    ),
+  );
+
+  const W = 1000;
+  const L = 44;
+  const R = 16;
+  const TOP = 12;
+  const BOT = 26;
+  const H = 220;
+  const plotH = H - TOP - BOT;
+  const minT = samples[0].t;
+  const maxT = samples[samples.length - 1].t;
+  const span = maxT - minT || 1;
+  const x = (t: number): number => L + ((t - minT) / span) * (W - L - R);
+  const y = (p: number): number => TOP + (1 - p / 100) * plotH;
+
+  const root = svg("svg", {
+    class: "viz-svg",
+    viewBox: `0 0 ${W} ${H}`,
+    width: "100%",
+    preserveAspectRatio: "xMinYMin meet",
+    role: "img",
+  });
+
+  // Quadrillage horizontal + labels d'axe Y (0 / 50 / 100 %).
+  for (const g of [0, 50, 100]) {
+    const gy = y(g);
+    root.append(
+      svg("line", { x1: L, y1: gy.toFixed(1), x2: W - R, y2: gy.toFixed(1), class: "viz-grid" }),
+    );
+    const tx = svg("text", { x: L - 6, y: (gy + 3).toFixed(1), class: "viz-ax", "text-anchor": "end" });
+    tx.textContent = `${g}%`;
+    root.append(tx);
+  }
+
+  // Labels d'axe X (temps) : debut / milieu / fin de la fenetre.
+  for (const frac of [0, 0.5, 1]) {
+    const t = minT + span * frac;
+    const anchor = frac === 0 ? "start" : frac === 1 ? "end" : "middle";
+    const tx = svg("text", { x: x(t).toFixed(1), y: H - 8, class: "viz-ax", "text-anchor": anchor });
+    tx.textContent = fmtHm(t);
+    root.append(tx);
+  }
+
+  // Polyligne du %.
+  const points = samples.map((s) => `${x(s.t).toFixed(1)},${y(pct(s)).toFixed(1)}`).join(" ");
+  root.append(svg("polyline", { points, class: "viz-memline", fill: "none" }));
+
+  // Points + tooltips (`hh:mm` · `62 %` · `9,8 Go`).
+  for (const s of samples) {
+    const c = svg("circle", {
+      cx: x(s.t).toFixed(1),
+      cy: y(pct(s)).toFixed(1),
+      r: 2,
+      class: "viz-mempt",
+    });
+    const title = document.createElementNS(SVGNS, "title");
+    title.textContent = `${fmtHm(s.t)} · ${Math.round(pct(s))} % · ${fmtGb(s.usedBytes)}`;
+    c.append(title);
+    root.append(c);
+  }
+
+  section.append(root);
+  return section;
 }
 
 function legendItem(cls: string, text: string): HTMLElement {
