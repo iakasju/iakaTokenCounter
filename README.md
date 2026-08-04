@@ -19,8 +19,8 @@ interne** (mécanisme de repli pour estimer la consommation), pas le produit.
 
 ## Installation
 
-La version scellée courante est **[v0.1.0](../../releases/tag/v0.1.0)** — voir
-[toutes les versions](../../releases).
+La version scellée courante est **[v0.1.0](https://github.com/iakasju/iakaTokenCounter/releases/tag/v0.1.0)** — voir
+[toutes les versions](https://github.com/iakasju/iakaTokenCounter/releases).
 
 > **À ce stade, les releases publient les sources, pas de binaire pré-compilé.**
 > L'application se construit depuis l'archive de la version.
