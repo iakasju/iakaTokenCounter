@@ -22,17 +22,23 @@ interne** (mécanisme de repli pour estimer la consommation), pas le produit.
 La version scellée courante est **[v0.1.0](https://github.com/iakasju/iakaTokenCounter/releases/tag/v0.1.0)** — voir
 [toutes les versions](https://github.com/iakasju/iakaTokenCounter/releases).
 
-### macOS (Apple Silicon)
+### Binaires prêts à l'emploi
 
-Téléchargez **`iakaTokenCounter_v0.1.0_macos-arm64.dmg`** depuis la
-[page de la release](https://github.com/iakasju/iakaTokenCounter/releases/tag/v0.1.0),
-ouvrez-le et glissez l'application dans `Applications`.
+Tous les systèmes sont couverts. Prenez le fichier de votre plateforme sur la
+[page de la release](https://github.com/iakasju/iakaTokenCounter/releases/tag/v0.1.0) :
 
-> L'application n'est pas signée par un certificat Apple. Au premier lancement, faites
-> **clic droit → Ouvrir** puis confirmez : un double-clic direct serait bloqué par macOS.
+| Système | Fichier à télécharger |
+|---|---|
+| **Windows** | `iakaTokenCounter_0.1.0_x64-setup.exe` (installeur) ou `_x64_en-US.msi` |
+| **macOS Apple Silicon** | `iakaTokenCounter_v0.1.0_macos-arm64.dmg` |
+| **Linux (Debian/Ubuntu)** | `iakaTokenCounter_0.1.0_amd64.deb` |
+| **Linux (Fedora/RHEL)** | `iakaTokenCounter-0.1.0-1.x86_64.rpm` |
+| **Linux (portable)** | `iakaTokenCounter_0.1.0_amd64.AppImage` |
 
-Pour les autres plateformes — Windows, Linux, macOS Intel — construisez depuis les sources
-comme ci-dessous.
+> **macOS** — l'application n'est pas signée par un certificat Apple. Au premier lancement,
+> faites **clic droit → Ouvrir** puis confirmez : un double-clic direct serait bloqué.
+>
+> **Linux** — l'AppImage se lance sans installation, après `chmod +x`.
 
 ### Construire depuis les sources
 
