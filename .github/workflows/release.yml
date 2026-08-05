@@ -87,6 +87,22 @@ jobs:
       - name: Installer les dependances
         run: npm ci
 
+      - name: Construire les binaires compagnons (sidecars)
+        shell: bash
+        run: |
+          TRIPLE="${{ matrix.rust }}"
+          if [ -z "$TRIPLE" ]; then TRIPLE=$(rustc -vV | sed -n 's/^host: //p'); fi
+          echo "cible des sidecars : $TRIPLE"
+          rustup target add "$TRIPLE" || true
+          cargo build --release -p iakahub -p iakatc-daemon --target "$TRIPLE"
+          mkdir -p src-tauri/binaries
+          EXT=""
+          case "$TRIPLE" in *windows*) EXT=".exe" ;; esac
+          for b in iakahub iakatc-daemon; do
+            cp "target/$TRIPLE/release/$b$EXT" "src-tauri/binaries/$b-$TRIPLE$EXT"
+          done
+          ls -l src-tauri/binaries
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
