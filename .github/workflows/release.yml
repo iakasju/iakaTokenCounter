@@ -1,8 +1,8 @@
 name: release
 
-# Construit les binaires de toutes les plateformes et les attache a la release
-# du tag pousse. Ne se declenche QUE sur un tag de version : aucun cout sur les
-# pushes ordinaires.
+# Construit les binaires et les attache a la release du tag.
+# Sur un tag pousse : les 4 plateformes. En declenchement manuel : au choix,
+# pour ne pas consommer inutilement les minutes macOS (facturees 10x).
 on:
   push:
     tags:
@@ -12,24 +12,51 @@ on:
       tag:
         description: 'Tag de version a construire (ex. v0.1.0)'
         required: true
+      platforms:
+        description: 'Plateformes a construire'
+        type: choice
+        required: true
+        default: toutes
+        options:
+          - toutes
+          - windows,linux
+          - windows
+          - linux
+          - macos
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          SEL="${{ github.event.inputs.platforms || 'toutes' }}"
+          ALL='[
+            {"key":"macos-arm64","platform":"macos-latest","args":"--target aarch64-apple-darwin","rust":"aarch64-apple-darwin"},
+            {"key":"macos-x64","platform":"macos-latest","args":"--target x86_64-apple-darwin","rust":"x86_64-apple-darwin"},
+            {"key":"linux","platform":"ubuntu-22.04","args":"","rust":""},
+            {"key":"windows","platform":"windows-latest","args":"","rust":""}
+          ]'
+          if [ "$SEL" = "toutes" ]; then
+            M=$(echo "$ALL" | jq -c .)
+          else
+            M=$(echo "$ALL" | jq -c --arg sel "$SEL" \
+              '($sel|split(",")) as $s | [ .[] | select( .key as $k | $s | any(. as $x | $k|startswith($x)) ) ]')
+          fi
+          echo "plateformes retenues : $(echo "$M" | jq -r '[.[].key]|join(", ")')"
+          echo "matrix=$M" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: macos-latest      # Apple Silicon
-            args: '--target aarch64-apple-darwin'
-          - platform: macos-latest      # Intel
-            args: '--target x86_64-apple-darwin'
-          - platform: ubuntu-22.04
-            args: ''
-          - platform: windows-latest
-            args: ''
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -38,7 +65,7 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Dependances systeme Linux
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.key == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
@@ -51,7 +78,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ contains(matrix.args, 'aarch64') && 'aarch64-apple-darwin' || (contains(matrix.args, 'x86_64') && 'x86_64-apple-darwin' || '') }}
+          targets: ${{ matrix.rust }}
 
       - uses: swatinem/rust-cache@v2
         with:
