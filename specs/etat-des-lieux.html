@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Etat des lieux - iakaTokenCounter</title>
+<style>
+:root{--gold:#c8a44e;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:Inter,-apple-system,Segoe UI,sans-serif;background:#0a0a0a;color:#f0f0f0;line-height:1.6;padding:2.5rem 1.5rem;max-width:60rem;margin:0 auto;}
+h1{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;}
+h1 .accent{background:linear-gradient(135deg,#c8a44e,#e8c960);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.sub{color:#777;font-size:.85rem;margin:.4rem 0 2rem;}
+h2{font-size:1.1rem;font-weight:700;margin:2.2rem 0 .8rem;color:var(--gold);}
+table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;font-size:.88rem;margin:.5rem 0;}
+th{background:#161616;color:#888;text-transform:uppercase;font-size:.7rem;letter-spacing:.06em;padding:.6rem .9rem;text-align:left;}
+td{padding:.6rem .9rem;border-top:1px solid #1f1f1f;color:#bbb;}
+code{font-family:'SF Mono',Consolas,monospace;background:rgba(200,164,78,.1);color:var(--gold);padding:.1rem .35rem;border-radius:4px;font-size:.82rem;}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:.3rem 1.2rem;font-size:.92rem;background:#141414;border:1px solid #2a2a2a;border-radius:10px;padding:1.1rem 1.3rem;}
+.kv .k{color:#888;}
+.ok{color:#2ecc71;}.bad{color:#e74c3c;font-weight:600;}
+.r{font-size:.7rem;font-weight:600;text-transform:uppercase;padding:.1rem .5rem;border-radius:999px;}
+.r-version{background:rgba(46,204,113,.15);color:#2ecc71;}
+.r-pause{background:rgba(230,126,34,.15);color:#e67e22;}
+.r-reprise{background:rgba(52,152,219,.15);color:#3498db;}
+.r-manual{background:rgba(150,150,150,.15);color:#aaa;}
+footer{margin-top:3rem;padding-top:1.2rem;border-top:1px solid #1f1f1f;color:#555;font-size:.78rem;}
+</style></head><body>
+<h1>Etat des lieux - <span class="accent">iakaTokenCounter</span></h1>
+<div class="sub">Genere le 2026-09-17 00:54 - motif : pause - a regenerer a chaque version et a chaque pause/reprise.</div>
+<h2>Etat courant</h2>
+<div class="kv">
+  <div class="k">Version</div><div>v0.1.0</div>
+  <div class="k">Branche</div><div>main</div>
+  <div class="k">Dernier commit</div><div><code>9db95bf fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1)</code></div>
+  <div class="k">Arbre</div><div><span class='bad'>modifications non commitees</span></div>
+  <div class="k">Fichiers</div><div>143 (suivis + non ignores)</div>
+  <div class='k'>Note</div><div>Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee</div>
+</div>
+<h2>Commits recents</h2><table><tr><th>Hash</th><th>Date</th><th>Sujet</th></tr><tr><td><code>9db95bf</code></td><td>2026-09-16</td><td>fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1)</td></tr>
+<tr><td><code>2207aec</code></td><td>2026-09-16</td><td>test(daemon): integration A1/A2 — lot de 300 sans perte, hors-ligne borne</td></tr>
+<tr><td><code>8879652</code></td><td>2026-09-16</td><td>fix(mqtt): transport sans perte, budget de retry borne, resync hors event-loop</td></tr>
+<tr><td><code>350ab4a</code></td><td>2026-09-16</td><td>chore(daemon): expose config/mqtt via une cible [lib]</td></tr>
+<tr><td><code>787ba91</code></td><td>2026-09-16</td><td>docs(instructions): cadre le correctif du transport MQTT sans perte</td></tr>
+<tr><td><code>d209314</code></td><td>2026-08-05</td><td>docs(readme): liste les binaires reellement publies, tous systemes</td></tr>
+<tr><td><code>97843c9</code></td><td>2026-08-05</td><td>docs(readme): le contrat de projet est celui du runner, pas d'un produit</td></tr>
+<tr><td><code>a36347c</code></td><td>2026-08-05</td><td>ci(release): construit les sidecars pour la cible avant le bundle</td></tr>
+<tr><td><code>f8b7bf9</code></td><td>2026-08-05</td><td>ci(release): choix des plateformes au declenchement manuel</td></tr>
+<tr><td><code>0e66227</code></td><td>2026-08-05</td><td>docs(readme): l'installation part du binaire publie, plus des sources</td></tr>
+</table>
+<h2>Journal (versions &amp; pauses)</h2>
+<table><tr><th>Date</th><th>Motif</th><th>Version</th><th>Branche</th><th>Note</th></tr>
+<tr><td>2026-09-17 00:54</td><td><span class='r r-pause'>pause</span></td><td>v0.1.0</td><td>main</td><td>Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee</td></tr>
+<tr><td>2026-09-17 00:53</td><td><span class='r r-pause'>pause</span></td><td>v0.1.0</td><td>main</td><td>Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee</td></tr>
+</table>
+<footer>iakaframe - etat des lieux automatique. Le recit de reprise est tenu dans specs/etat-des-lieux.md et specs/PROJET.md.</footer>
+</body></html>

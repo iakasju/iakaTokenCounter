@@ -1,81 +1,98 @@
-# État des lieux — 2026-07-12
+# Etat des lieux - iakaTokenCounter
 
-## En une phrase
-La feature **visibilité conso/quota Codex** (leviers A + B) est **livrée et en service** :
-qualité Legolas PASS (101 tests verts, clippy 0, typecheck vert), **test réel validé par le
-décideur**, nouveau bundle **installé dans `/Applications`** et relancé. Reste la sauvegarde
-distante (commits non poussés).
+> Genere par iakaframe (CLI) le 2026-09-17 00:54 (motif: pause).
+> A regenerer a chaque changement de version et a chaque pause/reprise.
 
-## Fait récemment
-- **Diagnostic Codex** (reprise du point d'attention « quota Codex fenêtre 30j non mappée ») :
-  le parsing/mesure Codex fonctionne (`scan_codex` sort de vrais tokens sur les rollouts réels) ;
-  la cause du « rien ne s'affiche » = sur le **plan free**, la fenêtre de rate-limit vaut
-  `43200 min` (30 j), non mappée sur 5h/7j → aucun réservoir → carte Codex vide, et l'accès
-  analytics (double-clic) étant branché sur la carte de quota, tout Codex devenait invisible.
-- **Cadrage Gandalf** — instruction fermée `specs/instructions/feature-codex-visibilite-quota.md`
-  (leviers A + B). Fact-check : `merge()` fabrique déjà une carte `codex/default` (branche 4) mais
-  **vide** → A est un correctif de **rendu**, pas de plomberie MQTT.
-- **Implémentation Gimli** (5 commits, A puis B) :
-  - **A** — `src/render.ts` : carte conso-only (jauge rendue ssi `remainingPct` non null,
-    ligne de conso `used_tokens` lisible, empty-state honnête, double-clic analytics conservé).
-  - **B** — fenêtre `Window::ThirtyDay` (code `30d`, **hors `all()`** → cohérence Claude 5h/7j) ;
-    `codex_window(40320..=44640) → ThirtyDay` ; `codex_reservoirs` free → réservoir 30d
-    Official/CodexRollout ; contrat MQTT étendu (additif, non-breaking) ; `state.rs` + `icon.rs`
-    (worst + icône) + `types.ts`/`render.ts` (`thirtyD`, jauge `30j`).
-- **Gate qualité Legolas — PASS** : `cargo test --workspace` 101 passed / 0 failed ;
-  `cargo clippy -D warnings` 0 warning ; `npm run typecheck` vert ; `npm run build` OK.
-  Écarts du dev vérifiés légitimes (`icon.rs` requis par critère B ; tests de mapping mis à jour).
-- **Build + bundle** : sidecars release régénérés (`iakahub`, `iakatc-daemon`, 12/07 22:08) +
-  `.app` buildé et **lancé** (3 process frais up). Le `.dmg` échoue (`bundle_dmg.sh`) — optionnel,
-  non bloquant (distribution par `.app`).
+## Etat courant
 
-## En cours
-- Rien en développement actif. Feature Codex A+B **bouclée** (validée + installée). Branche
-  `main` propre.
-
-## Jalons (gates)
-| Jalon | Statut |
+| Champ | Valeur |
 |---|---|
-| Instruction cadrée | oui (`feature-codex-visibilite-quota.md`, A+B) |
-| Tests verts | oui (101 : core + daemon + iakahub + tray ; clippy + typecheck verts) |
-| Recette stage | **oui** (test réel validé décideur + bundle installé dans `/Applications` + relancé) |
-| Feu vert prod | non applicable (produit local ; pas de squad Helm engagé) |
+| Version | v0.1.0 |
+| Branche | main |
+| Dernier commit | 9db95bf fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1) |
+| Arbre | MODIFICATIONS NON COMMITEES |
+| Fichiers (suivis + non ignores) | 143 |
+| Note | Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee |
 
-## Prochaine étape
-**Push Forgejo** des commits d'avance (sauvegarde distante) — sous réserve d'un token
-`write:repository` valide. Ensuite : choisir une suite de vision, ou éponger la dette légère.
+## Commits recents
 
-## Points d'attention
-- **Gate humain non automatisable** : le levier A (rendu TS) n'a **aucun test auto** (pas de
-  vitest dans le projet) → sa validation dépend entièrement du test à l'écran. Legolas l'a acté.
-- **Push distant à confirmer** : 7 commits en avance sur `origin/main`, non poussés. Le blocage
-  token Forgejo (401 `write:repository`) des reprises précédentes est **à re-vérifier** avant push.
-- **Dette légère tracée par Legolas** (non bloquante) : tests de bornes manquants pour
-  `formatTokens` (999/1000/1_000_000) et `codex_window` aux limites `40320`/`44640` ;
-  ligne conso désormais possible aussi sur carte Claude (homogénéité assumée, à confirmer à l'œil).
-- **Plan Codex payant** : les fenêtres pertinentes (5h primaire + 7j hebdo) **mappent déjà** ;
-  aucun code à changer si passage en payant. Le `30d` ne concerne que le plan free.
-- **`.dmg`** : `bundle_dmg.sh` échoue (volume/hdiutil ou automatisation Finder) — distribution
-  par `.app` en attendant ; CI multi-OS + notarisation toujours non faits.
+| Hash | Date | Sujet |
+|---|---|---|
+| `9db95bf` | 2026-09-16 | fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1) |
+| `2207aec` | 2026-09-16 | test(daemon): integration A1/A2 — lot de 300 sans perte, hors-ligne borne |
+| `8879652` | 2026-09-16 | fix(mqtt): transport sans perte, budget de retry borne, resync hors event-loop |
+| `350ab4a` | 2026-09-16 | chore(daemon): expose config/mqtt via une cible [lib] |
+| `787ba91` | 2026-09-16 | docs(instructions): cadre le correctif du transport MQTT sans perte |
+| `d209314` | 2026-08-05 | docs(readme): liste les binaires reellement publies, tous systemes |
+| `97843c9` | 2026-08-05 | docs(readme): le contrat de projet est celui du runner, pas d'un produit |
+| `a36347c` | 2026-08-05 | ci(release): construit les sidecars pour la cible avant le bundle |
+| `f8b7bf9` | 2026-08-05 | ci(release): choix des plateformes au declenchement manuel |
+| `0e66227` | 2026-08-05 | docs(readme): l'installation part du binaire publie, plus des sources |
 
-## Journal de reprise
-- **2026-07-12 (clôture)** — Test réel **validé par le décideur** (carte Codex conso + jauge
-  `30j`, double-clic analytics, Claude sans régression) → bundle **installé dans `/Applications`**
-  et relancé (chemin `statusLine` inchangé, capture Claude préservée). Feature Codex A+B **en
-  service**. Reste : push Forgejo (token à re-vérifier).
-- **2026-07-12** — Feature **visibilité conso/quota Codex (A+B)**. Diagnostic : plan Codex **free**
-  → fenêtre 30 j (`43200 min`) non mappée sur 5h/7j → carte vide + analytics inatteignable (double-clic
-  branché sur la carte de quota). Cadrage Gandalf (A = rendu conso-only ; B = `Window::ThirtyDay`),
-  implémentation Gimli (5 commits), gate **Legolas PASS** (101 tests, clippy 0, typecheck vert).
-  Build `.app` + sidecars release régénérés, bundle **lancé** pour test réel. Prochaine reprise :
-  verdict visuel de Stéphane → install `/Applications` + push (re-vérifier le token Forgejo).
-- **2026-07-09** — Correctif macOS « app menubar pure » : `ActivationPolicy::Accessory` (runtime)
-  d'abord, jugée **insuffisante** (icône Dock réapparaissait) ; corrigé pour de bon via
-  `LSUIElement=true` dans `src-tauri/Info.plist` (agent statique). Icône Dock supprimée + tuile
-  « récente » résiduelle retirée à la main → **confirmé OK par le décideur**. Barres Claude vides
-  au démarrage = latence de première capture (pas un bug). Push Forgejo **toujours bloqué**
-  (token 401, `.git/config` + `$FORGEJO_TOKEN`). Prochaine reprise : régénérer un token
-  `write:repository` et pousser les 41 commits.
-- **2026-07-08** — Jalon MVP+iakahub livré et validé en recette réelle (5 gates PASS, 94 tests,
-  36 commits locaux non poussés). Prochaine reprise : pousser sur Forgejo (token à régénérer),
-  puis choisir une suite (bridge iakabox / vendoring Cockpit / tokenizer).
+## Reprise du travail (a completer par Cowork)
+
+- **Ce qui vient d'etre fait** : correction du **transport MQTT du daemon** (lot A de
+  `specs/instructions/fix-mqtt-transport-pertes.md`). Symptome signale par le decideur : la
+  jauge **5h** ne s'affichait plus dans l'icone du tray. Diagnostic : le daemon poussait
+  **227 codes par tick** d'un bloc dans un channel rumqttc de capacite **64** via un
+  `try_publish` non bloquant dont l'`Err` etait jete sans log (`iakatc-daemon/src/mqtt.rs`).
+  Mesure au faux broker : **227 emis / 65 recus**, les 65 tous de la famille
+  `all/projets/agents/...` coupee alphabetiquement — **aucun code de quota ne sortait**.
+  Les valeurs de quota n'arrivaient que par le resync `ConnAck`, qui iterait sur un `HashMap`
+  (ordre aleatoire), d'ou un etat retained en patchwork : `remaining_pct` frais a cote d'un
+  `confidence: "none"` fige depuis des heures. Or `classify()` (`src-tauri/src/icon.rs`) rend
+  `Fill::Unknown` sur `confidence: "none"` → barre dessinee vide malgre `remaining_pct = 99`.
+  Livre par Gimli en 5 commits atomiques (pousses sur `origin`) : capacite 1024 + inflight
+  aligne, `publish_batch` a retry borne (tentatives **et** budget par lot), distinction
+  `TryRequest` / `Request`, etat par topic valeur+envoye, resync delegue a un thread court
+  avec ordre deterministe, log de tick honnete (`emis / publies / perdus`), cible `[lib]` +
+  tests d'integration A1/A2. **Point 9** inclus sur feu vert du decideur, en commit separe :
+  `DEFAULT_HOST` du daemon `192.168.2.11` → `127.0.0.1`, et § 6 de `specs/contrat-mqtt-conso.md`
+  aligne. Verification apres coup sur le broker reel : **227 emis / 227 recus**, les 35 codes
+  de quota presents, `claude/max` 5h et 7j en `confidence: "official"`, **tous au meme `t`**.
+  App rebuildee (sidecars d'abord — le daemon n'est pas compile par le build Tauri) et
+  reinstallee dans `/Applications`. Recette **a froid** validee : purge des 227 retained →
+  broker a 0 → repeuplement integral en **moins de 10 s** au tick suivant.
+- **En cours / a reprendre** : rien en cours, arbre propre, `main` synchronise avec `origin`.
+  Le **lot B** (publication differentielle / dedup) est **cadre et non demarre** : il est
+  specifie dans la meme instruction, avec deux points de conception deja tranches par Gandalf
+  (dedup sur `v` seul, car `t` change a chaque tick ; etat memoire distinguant *derniere valeur
+  a publier* de *envoi confirme*, sinon un message perdu ne serait plus jamais reemis).
+- **Prochaine etape concrete** : faire passer **Legolas** sur le lot A. Gimli a fait tourner
+  `scripts/quality-report.sh` en PASS lui-meme, mais le gate independant n'a pas eu lieu, et il
+  a laisse **deux ecarts assumes a trancher** : (a) le broker de test reimplemente dans
+  `iakatc-daemon/tests/mqtt_no_loss.rs` au lieu de reutiliser `iakahub::broker`, parce que le
+  `max_inflight_count = 100` d'iakahub fait cesser la redistribution au-dela du seuil ;
+  (b) le critere A3 (resync apres coupure reelle) couvert par un test unitaire d'ordonnancement
+  plutot qu'en integration, faute d'API de redemarrage propre cote `rumqttd`.
+- **Pieges connus** :
+  - **Le daemon n'est pas compile par `npm run tauri build`.** C'est un sidecar
+    (`bundle.externalBin`). Toute correction dans `iakatc-daemon` exige
+    `bash scripts/prepare-sidecar.sh` **avant** le build, sinon on rebundle l'ancien binaire
+    dans une app neuve et rien ne change a l'ecran.
+  - **Second goulot, non corrige, cote broker → abonne** : `max_inflight_count = 100` dans
+    `iakahub/rumqttd.toml`. Gimli a constate empiriquement que la redistribution a un abonne
+    **cesse durablement** au-dela du seuil. Le tray recoit 227 messages par tick : il est en
+    plein dans la zone a risque. C'est le pendant exact du bug qu'on vient de corriger et cela
+    merite son propre cadrage. (Le meme plafond, plus `max_outgoing_packet_count = 200`, fausse
+    aussi tout sniffer MQTT maison : des totaux pile a 100 ou 200 sont des artefacts de
+    transport, pas des inventaires.)
+  - **iakahub ne persiste pas les retained sur disque.** Tout redemarrage de l'app repart d'un
+    broker vide. C'est ce qui explique les timestamps de 13 jours observes avant l'intervention :
+    iakahub tournait sans interruption depuis le 2 septembre et les topics orphelins
+    s'accumulaient faute de redemarrage.
+  - **L'etat du tray est purement additif** : un payload vide fait echouer `parse_payload`
+    (`src-tauri/src/state.rs`) et le message est ignore — ce qui le rend robuste a une purge,
+    mais signifie qu'**aucun code deja appris n'est jamais oublie**. Si le daemon meurt, l'icone
+    garde ses jauges indefiniment. La webview a des seuils de fraicheur (`FRESHNESS_5H`,
+    `FRESHNESS_7D` dans `src/render.ts`), **l'icone du tray n'en a pas**.
+  - **Remotes non conformes a la methode** : `origin` → `192.168.1.139:3001`, `iakabox` →
+    `192.168.2.11:3001` (deux Forgejo LAN a des adresses differentes), plus un remote `github`
+    vers `github.com/iakasju/iakaTokenCounter.git`. **Aucun remote VPS `git.naonedge.com`**,
+    pourtant remote par defaut de la methode. Seul `origin` a ete pousse.
+
+## Journal (versions & pauses)
+
+| Date | Motif | Version | Branche | Note |
+|---|---|---|---|---|
+| 2026-09-17 00:54 | pause | v0.1.0 | main | Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee |
