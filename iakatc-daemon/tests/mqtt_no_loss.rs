@@ -20,9 +20,11 @@
 //! exactement la question posee par A1 : le daemon perd-il des messages en les emettant ?
 //!
 //! A3 (resync deterministe + republication complete au retour en ligne) est couvert par le test
-//! unitaire `mqtt::tests::resync_order_est_deterministe_et_republie_tout`
-//! (`iakatc-daemon/src/mqtt.rs`) : aucune API de coupure/reprise propre n'est disponible sans
-//! toucher `iakahub` (hors perimetre). A4 (aucune publication retentee dans le thread
+//! unitaire `mqtt::tests::resync_order_est_deterministe_et_republie_tout` (tri/dedup, pur, sans
+//! reseau) **et** par le test d'integration `a3_resync_republie_tout_apres_coupure_et_reprise`
+//! ci-dessous : meme broker maison que le reste de ce fichier, avec une coupure de connexion
+//! deliberee en cours de lot puis une reconnexion, pour prouver que le resync declenche par le
+//! vrai `ConnAck` republie tout l'etat sur le fil. A4 (aucune publication retentee dans le thread
 //! `connection.iter()`) est un critere de revue de code, verifie par lecture du diff de `mqtt.rs`.
 
 use std::collections::HashSet;
@@ -136,6 +138,80 @@ fn handle_client(mut stream: TcpStream, received: Arc<Mutex<HashSet<String>>>) {
     }
 }
 
+/// Sert une premiere connexion qui coupe apres `drop_after` PUBLISH (force la reconnexion cote
+/// client), puis laisse l'appelant servir la seconde connexion normalement (`handle_client`) — meme
+/// codec et meme routine d'accuses que `handle_client`, avec une coupure deliberee au milieu.
+fn handle_client_avec_coupure(
+    mut stream: TcpStream,
+    received: Arc<Mutex<HashSet<String>>>,
+    drop_after: usize,
+) {
+    stream.set_nodelay(true).ok();
+    let mut buf = BytesMut::with_capacity(MAX_PACKET_SIZE);
+    let mut chunk = [0u8; 4096];
+    let mut count = 0usize;
+    loop {
+        loop {
+            match read_packet(&mut buf, MAX_PACKET_SIZE) {
+                Ok(Packet::Connect(_)) => {
+                    let mut out = BytesMut::new();
+                    let _ = ConnAck::new(ConnectReturnCode::Success, false).write(&mut out);
+                    if stream.write_all(&out).is_err() {
+                        return;
+                    }
+                }
+                Ok(Packet::Publish(p)) => {
+                    received.lock().unwrap().insert(p.topic.clone());
+                    count += 1;
+                    let mut out = BytesMut::new();
+                    let _ = PubAck::new(p.pkid).write(&mut out);
+                    if stream.write_all(&out).is_err() {
+                        return;
+                    }
+                    if count >= drop_after {
+                        return; // coupure deliberee : force la reconnexion cote client
+                    }
+                }
+                Ok(Packet::PingReq) => {
+                    let mut out = BytesMut::new();
+                    let _ = PingResp.write(&mut out);
+                    if stream.write_all(&out).is_err() {
+                        return;
+                    }
+                }
+                Ok(Packet::Disconnect) => return,
+                Ok(_) => {}
+                Err(MqttBytesError::InsufficientBytes(_)) => break,
+                Err(_) => return,
+            }
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) => return,
+            Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            Err(_) => return,
+        }
+    }
+}
+
+/// Demarre le broker de coupure/reprise A3 : la premiere connexion est coupee apres `drop_after`
+/// PUBLISH, la seconde est servie jusqu'a la fin du test (`handle_client`, meme routine que A1/A2).
+/// Retourne l'ensemble (partage) des topics recus, toutes connexions confondues — la source de
+/// verite pour juger si le resync a republie tout l'etat apres reconnexion.
+fn spawn_broker_coupure_puis_reprise(port: u16, drop_after: usize) -> Arc<Mutex<HashSet<String>>> {
+    let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind broker de test");
+    let received: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+    let received_for_thread = Arc::clone(&received);
+    std::thread::spawn(move || {
+        if let Ok((s1, _)) = listener.accept() {
+            handle_client_avec_coupure(s1, Arc::clone(&received_for_thread), drop_after);
+        }
+        if let Ok((s2, _)) = listener.accept() {
+            handle_client(s2, received_for_thread);
+        }
+    });
+    received
+}
+
 /// A1 — lot de 300 topics distincts publies via `MqttPublisher` sur un broker de test : le broker
 /// recoit les 300 PUBLISH, aucun manquant.
 #[test]
@@ -199,6 +275,53 @@ fn a2_hors_ligne_borne_sans_panique() {
     assert!(
         !publisher.is_connected(),
         "aucun broker n'ecoute sur ce port : la connexion ne doit jamais s'etablir"
+    );
+}
+
+/// A3 — coupure de connexion en cours de lot puis reprise : le resync declenche par le `ConnAck`
+/// de reconnexion republie **tout** l'etat connu, y compris les topics deja acquittes avant la
+/// coupure (pas seulement ceux qui manquaient). C'est le mecanisme qui, en iterant jadis sur un
+/// `HashMap` non deterministe, avait produit le patchwork a l'origine de ce lot ; une regression
+/// dessus doit faire echouer ce test, pas seulement le test unitaire pur sur `resync_order`.
+///
+/// Anti-empilement (`resyncing`) non couvert ici : le forcer de facon fiable demanderait
+/// d'instrumenter l'etat interne du publisher (aucune API publique n'expose si un resync est en
+/// cours) ou d'enchainer des `ConnAck` assez vite pour garantir un chevauchement — non
+/// reproductible de facon deterministe depuis un test boite noire sans le rendre flaky.
+#[test]
+fn a3_resync_republie_tout_apres_coupure_et_reprise() {
+    let port = free_port();
+    const DROP_AFTER: usize = 3;
+    let received = spawn_broker_coupure_puis_reprise(port, DROP_AFTER);
+
+    let cfg = test_config(port, "test-a3-resync");
+    let publisher = MqttPublisher::connect(&cfg);
+    attendre_connexion(&publisher);
+
+    let messages = lot_de_messages("a3", 5);
+    let stats = publisher.publish_batch(&messages);
+    assert_eq!(stats.emitted, 5);
+
+    // Le broker coupe la premiere connexion apres DROP_AFTER PUBLISH : sans resync sur
+    // reconnexion, seuls ces DROP_AFTER topics seraient jamais recus. On attend que la
+    // reconnexion + le resync aient republie les 5.
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let count = received.lock().unwrap().len();
+        if count >= 5 {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "le resync apres reconnexion n'a pas republie tout l'etat a temps ({count}/5)"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    assert_eq!(
+        received.lock().unwrap().len(),
+        5,
+        "le broker doit avoir recu les 5 topics, coupure + resync compris"
     );
 }
 
