@@ -24,11 +24,21 @@ use iakatc_daemon::mqtt::MqttPublisher;
 /// Version publiee dans `meta/daemon/version` (suit la version du crate).
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Filet de securite B : resync complet periodique meme connecte, pour borner a ~10 min toute
-/// divergence silencieuse entre l'etat du daemon et le retained du broker (la dedup differentielle
-/// ne republie plus un topic inchange, donc un retained perdu sans coupure TCP visible ne serait
-/// sinon jamais rattrape avant le prochain changement de valeur). Constante nommee, pas de
-/// configuration nouvelle (cf. instruction § B, etape 9).
+/// Resync complet periodique meme connecte, pour borner a ~10 min toute divergence silencieuse
+/// entre l'etat du daemon et le retained du broker (la dedup differentielle ne republie plus un
+/// topic inchange, donc un retained perdu sans coupure TCP visible ne serait sinon jamais rattrape
+/// avant le prochain changement de valeur). Constante nommee, pas de configuration nouvelle (cf.
+/// instruction § B, etape 9).
+///
+/// **Ce n'est plus un simple filet de confort.** `rumqttd` tronque definitivement les retained
+/// qu'il renvoie a un abonne qui se (re)connecte au-dela de 100 messages (tirage arbitraire dans
+/// un `HashMap`, pas une file qui s'ecoule) — un abonne peut donc recevoir un etat partiel et
+/// incoherent (ex. `remaining_pct` sans son `confidence`, le patchwork que ce lot corrige cote
+/// emission). Avant B, ce defaut se reparait seul en un tick (le daemon republiait *tout* l'etat a
+/// *chaque* tick, dedup ou pas) ; depuis B, **ce resync periodique est le seul chemin qui repare un
+/// abonne tronque**. **Ne pas espacer cette periode « pour economiser du trafic » sans en parler au
+/// decideur** : l'espacer allonge d'autant le temps pendant lequel un abonne tronque reste
+/// incoherent.
 const PERIODIC_FULL_RESYNC_EVERY_N_TICKS: u64 = 10;
 
 fn main() {

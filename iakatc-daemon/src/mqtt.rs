@@ -20,8 +20,18 @@
 //! tick suivant meme a `v` inchange (`TopicState::sent`, invariant deja pose par A). Le resync,
 //! qu'il soit declenche par un `ConnAck` ou par le filet de securite periodique
 //! (`MqttPublisher::force_resync`, appele tous les `PERIODIC_FULL_RESYNC_EVERY_N_TICKS` ticks
-//! depuis `main.rs`), **ignore toujours la dedup** : il republie l'integralite de l'etat connu,
-//! c'est le seul mecanisme qui repeuple un broker ayant perdu son retained.
+//! depuis `main.rs`), **ignore toujours la dedup** : il republie l'integralite de l'etat connu.
+//!
+//! **Le resync periodique n'est plus un simple filet de confort depuis B.** Avant B, un abonne dont
+//! le broker (`rumqttd`) tronque les retained a la (re)connexion (au-dela de 100 messages, tirage
+//! arbitraire dans un `HashMap`, `forward_retained` bascule a `false`) se retrouvait recomplete au
+//! **tick suivant** malgre lui : le daemon republiait alors *tout* l'etat a *chaque* tick, dedup ou
+//! pas. **Ce filet a disparu avec B.** Le resync periodique (cf. `PERIODIC_FULL_RESYNC_EVERY_N_TICKS`
+//! dans `main.rs`) est donc devenu le **seul chemin de reparation** d'un abonne tronque — pas
+//! seulement un garde-fou contre une divergence silencieuse du retained. **Ne pas espacer cette
+//! periode pour « economiser du trafic »** sans en parler au decideur : l'espacer allonge d'autant
+//! le temps pendant lequel un abonne tronque reste en etat incoherent (le patchwork qu'on vient de
+//! corriger cote emission).
 
 use rumqttc::{Client, ClientError, Event, MqttOptions, Packet, QoS};
 use serde_json::Value;
@@ -144,11 +154,12 @@ impl MqttPublisher {
         }
     }
 
-    /// Declenche un resync complet immediat, hors de tout `ConnAck` — le filet de securite
-    /// periodique (cf. doc de module § B) appele par `main.rs` tous les
-    /// `PERIODIC_FULL_RESYNC_EVERY_N_TICKS` ticks. Reutilise exactement le meme mecanisme que le
-    /// resync automatique (thread court dedie, anti-empilement partage) : republie tout l'etat
-    /// connu, dedup ignoree.
+    /// Declenche un resync complet immediat, hors de tout `ConnAck` — le resync periodique (cf.
+    /// doc de module § B) appele par `main.rs` tous les `PERIODIC_FULL_RESYNC_EVERY_N_TICKS`
+    /// ticks. Reutilise exactement le meme mecanisme que le resync automatique (thread court
+    /// dedie, anti-empilement partage) : republie tout l'etat connu, dedup ignoree — c'est
+    /// **necessaire**, pas cosmetique : c'est le seul chemin qui repare un abonne dont le broker a
+    /// tronque les retained a la connexion (cf. doc de module).
     pub fn force_resync(&self) {
         spawn_resync(&self.client, &self.state, &self.connected, &self.resyncing);
     }
