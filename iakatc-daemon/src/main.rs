@@ -9,19 +9,17 @@
 //! Hors-ligne : broker injoignable -> mesure + journalisation + retente + republication a la
 //! reconnexion. Le daemon ne crashe pas.
 
-mod config;
-mod mqtt;
 mod statusline;
 
 use std::collections::HashMap;
 
 use iakatc_core::measure::{claude, codex, Measurement, Provider};
+use iakatc_core::now_epoch_s;
 use iakatc_core::publish::contract;
 use iakatc_core::quota::{config as qconfig, merge, resolve_home};
-use iakatc_core::now_epoch_s;
 
-use crate::config::DaemonConfig;
-use crate::mqtt::MqttPublisher;
+use iakatc_daemon::config::DaemonConfig;
+use iakatc_daemon::mqtt::MqttPublisher;
 
 /// Version publiee dans `meta/daemon/version` (suit la version du crate).
 const VERSION: &str = env!("CARGO_PKG_VERSION");

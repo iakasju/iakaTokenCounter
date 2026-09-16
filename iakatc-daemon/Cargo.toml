@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "Daemon de mesure iakaTokenCounter : tick de scan conso/quota, publication MQTT retained code/value, sous-commande statusline-capture. Orchestre iakatc-core."
 
+[lib]
+name = "iakatc_daemon"
+path = "src/lib.rs"
+
 [[bin]]
 name = "iakatc-daemon"
 path = "src/main.rs"
