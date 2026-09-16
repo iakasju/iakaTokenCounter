@@ -6,8 +6,11 @@ use std::time::Duration;
 
 /// Racine de topic par defaut (contrat § 1).
 pub const DEFAULT_ROOT: &str = "iakatokencounter";
-/// Broker Mosquitto iakabox par defaut (contrat § 6).
-pub const DEFAULT_HOST: &str = "192.168.2.11";
+/// Broker par defaut : iakahub local (`rumqttd` sur 127.0.0.1, backbone standalone retenu par
+/// l'architecture). Le LAN (Mosquitto iakabox) reste atteignable via `IAKATC_MQTT_HOST` (contrat
+/// § 6, point 9 : avant iakahub, `iakabox` etait le defaut ; iakahub l'injectait deja a son enfant,
+/// ce defaut n'etait donc correct qu'en lancement supervise, jamais en lancement manuel).
+pub const DEFAULT_HOST: &str = "127.0.0.1";
 pub const DEFAULT_PORT: u16 = 1883;
 /// Cadence de tick par defaut (D7).
 pub const DEFAULT_TICK_SECONDS: u64 = 60;
@@ -66,4 +69,16 @@ fn hostname() -> String {
     env("HOSTNAME")
         .or_else(|| env("COMPUTERNAME"))
         .unwrap_or_else(|| "host".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaut_hote_est_iakahub_local() {
+        // Point 9 : le backbone par defaut est iakahub (127.0.0.1), pas le LAN iakabox — un
+        // lancement manuel sans IAKATC_MQTT_HOST doit rester local, comme le lancement supervise.
+        assert_eq!(DEFAULT_HOST, "127.0.0.1");
+    }
 }

@@ -249,7 +249,7 @@ dépasse son seuil de fraîcheur local, ou (pour le quota) si `now > resets_at/c
 
 | Paramètre | Valeur défaut | Variable d'env |
 |---|---|---|
-| Hôte | `192.168.2.11` | `IAKATC_MQTT_HOST` |
+| Hôte | `127.0.0.1` | `IAKATC_MQTT_HOST` |
 | Port TCP | `1883` | `IAKATC_MQTT_PORT` |
 | Utilisateur | (obligatoire) | `IAKATC_MQTT_USER` (repli `MOSQUITTO_USER`) |
 | Mot de passe | (obligatoire) | `IAKATC_MQTT_PASSWORD` (repli `MOSQUITTO_PASSWORD`) |
