@@ -24,29 +24,30 @@ code{font-family:'SF Mono',Consolas,monospace;background:rgba(200,164,78,.1);col
 footer{margin-top:3rem;padding-top:1.2rem;border-top:1px solid #1f1f1f;color:#555;font-size:.78rem;}
 </style></head><body>
 <h1>Etat des lieux - <span class="accent">iakaTokenCounter</span></h1>
-<div class="sub">Genere le 2026-09-17 00:54 - motif : pause - a regenerer a chaque version et a chaque pause/reprise.</div>
+<div class="sub">Genere le 2026-09-17 01:50 - motif : pause - a regenerer a chaque version et a chaque pause/reprise.</div>
 <h2>Etat courant</h2>
 <div class="kv">
   <div class="k">Version</div><div>v0.1.0</div>
   <div class="k">Branche</div><div>main</div>
-  <div class="k">Dernier commit</div><div><code>9db95bf fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1)</code></div>
-  <div class="k">Arbre</div><div><span class='bad'>modifications non commitees</span></div>
-  <div class="k">Fichiers</div><div>143 (suivis + non ignores)</div>
-  <div class='k'>Note</div><div>Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee</div>
+  <div class="k">Dernier commit</div><div><code>46722bb docs(instructions): cadre le garde-fou du plafond de retained cote broker</code></div>
+  <div class="k">Arbre</div><div><span class='ok'>propre</span></div>
+  <div class="k">Fichiers</div><div>145 (suivis + non ignores)</div>
+  <div class='k'>Note</div><div>Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -&gt; 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage.</div>
 </div>
-<h2>Commits recents</h2><table><tr><th>Hash</th><th>Date</th><th>Sujet</th></tr><tr><td><code>9db95bf</code></td><td>2026-09-16</td><td>fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1)</td></tr>
+<h2>Commits recents</h2><table><tr><th>Hash</th><th>Date</th><th>Sujet</th></tr><tr><td><code>46722bb</code></td><td>2026-09-17</td><td>docs(instructions): cadre le garde-fou du plafond de retained cote broker</td></tr>
+<tr><td><code>15c3607</code></td><td>2026-09-17</td><td>test(daemon): couvre B1/B3 par des tests d'integration (dedup + resync)</td></tr>
+<tr><td><code>552f685</code></td><td>2026-09-17</td><td>docs(mqtt): le resync periodique est le seul chemin de reparation d'un abonne tronque</td></tr>
+<tr><td><code>8c1f4cb</code></td><td>2026-09-17</td><td>feat(mqtt): publication differentielle + resync periodique (lot B)</td></tr>
+<tr><td><code>56de18e</code></td><td>2026-09-17</td><td>test(daemon): couvre A3 (resync sur reconnexion) par un test d'integration reseau</td></tr>
+<tr><td><code>ec59f3a</code></td><td>2026-09-17</td><td>chore(iakatokencounter): update etat des lieux + commit global (pause)</td></tr>
+<tr><td><code>9db95bf</code></td><td>2026-09-16</td><td>fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1)</td></tr>
 <tr><td><code>2207aec</code></td><td>2026-09-16</td><td>test(daemon): integration A1/A2 — lot de 300 sans perte, hors-ligne borne</td></tr>
 <tr><td><code>8879652</code></td><td>2026-09-16</td><td>fix(mqtt): transport sans perte, budget de retry borne, resync hors event-loop</td></tr>
 <tr><td><code>350ab4a</code></td><td>2026-09-16</td><td>chore(daemon): expose config/mqtt via une cible [lib]</td></tr>
-<tr><td><code>787ba91</code></td><td>2026-09-16</td><td>docs(instructions): cadre le correctif du transport MQTT sans perte</td></tr>
-<tr><td><code>d209314</code></td><td>2026-08-05</td><td>docs(readme): liste les binaires reellement publies, tous systemes</td></tr>
-<tr><td><code>97843c9</code></td><td>2026-08-05</td><td>docs(readme): le contrat de projet est celui du runner, pas d'un produit</td></tr>
-<tr><td><code>a36347c</code></td><td>2026-08-05</td><td>ci(release): construit les sidecars pour la cible avant le bundle</td></tr>
-<tr><td><code>f8b7bf9</code></td><td>2026-08-05</td><td>ci(release): choix des plateformes au declenchement manuel</td></tr>
-<tr><td><code>0e66227</code></td><td>2026-08-05</td><td>docs(readme): l'installation part du binaire publie, plus des sources</td></tr>
 </table>
 <h2>Journal (versions &amp; pauses)</h2>
 <table><tr><th>Date</th><th>Motif</th><th>Version</th><th>Branche</th><th>Note</th></tr>
+<tr><td>2026-09-17 01:50</td><td><span class='r r-pause'>pause</span></td><td>v0.1.0</td><td>main</td><td>Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -&gt; 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage.</td></tr>
 <tr><td>2026-09-17 00:54</td><td><span class='r r-pause'>pause</span></td><td>v0.1.0</td><td>main</td><td>Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee</td></tr>
 <tr><td>2026-09-17 00:53</td><td><span class='r r-pause'>pause</span></td><td>v0.1.0</td><td>main</td><td>Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee</td></tr>
 </table>

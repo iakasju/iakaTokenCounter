@@ -18,5 +18,15 @@
     "dirty": true,
     "files": 143,
     "note": "Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee"
+  },
+  {
+    "date": "2026-09-17 01:50",
+    "reason": "pause",
+    "version": "v0.1.0",
+    "branch": "main",
+    "commit": "46722bb docs(instructions): cadre le garde-fou du plafond de retained cote broker",
+    "dirty": false,
+    "files": 145,
+    "note": "Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -> 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage."
   }
 ]
