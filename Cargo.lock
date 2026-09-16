@@ -1854,6 +1854,7 @@ dependencies = [
 name = "iakatc-daemon"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "dirs 5.0.1",
  "iakatc-core",
  "rumqttc",
