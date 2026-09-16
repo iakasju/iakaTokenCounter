@@ -1,6 +1,6 @@
 # Etat des lieux - iakaTokenCounter
 
-> Genere par iakaframe (CLI) le 2026-09-17 01:50 (motif: pause).
+> Genere par iakaframe (CLI) le 2026-09-17 01:52 (motif: manual).
 > A regenerer a chaque changement de version et a chaque pause/reprise.
 
 ## Etat courant
@@ -9,15 +9,16 @@
 |---|---|
 | Version | v0.1.0 |
 | Branche | main |
-| Dernier commit | 46722bb docs(instructions): cadre le garde-fou du plafond de retained cote broker |
+| Dernier commit | e473a29 chore(iakatokencounter): update etat des lieux + commit global (pause) |
 | Arbre | propre |
 | Fichiers (suivis + non ignores) | 145 |
-| Note | Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -> 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage. |
+| Note | Re-rendu HTML apres mise a jour du recit de reprise |
 
 ## Commits recents
 
 | Hash | Date | Sujet |
 |---|---|---|
+| `e473a29` | 2026-09-17 | chore(iakatokencounter): update etat des lieux + commit global (pause) |
 | `46722bb` | 2026-09-17 | docs(instructions): cadre le garde-fou du plafond de retained cote broker |
 | `15c3607` | 2026-09-17 | test(daemon): couvre B1/B3 par des tests d'integration (dedup + resync) |
 | `552f685` | 2026-09-17 | docs(mqtt): le resync periodique est le seul chemin de reparation d'un abonne tronque |
@@ -27,7 +28,6 @@
 | `9db95bf` | 2026-09-16 | fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1) |
 | `2207aec` | 2026-09-16 | test(daemon): integration A1/A2 — lot de 300 sans perte, hors-ligne borne |
 | `8879652` | 2026-09-16 | fix(mqtt): transport sans perte, budget de retry borne, resync hors event-loop |
-| `350ab4a` | 2026-09-16 | chore(daemon): expose config/mqtt via une cible [lib] |
 
 ## Reprise du travail (a completer par Cowork)
 
@@ -149,6 +149,7 @@
 
 | Date | Motif | Version | Branche | Note |
 |---|---|---|---|---|
+| 2026-09-17 01:52 | manual | v0.1.0 | main | Re-rendu HTML apres mise a jour du recit de reprise |
 | 2026-09-17 01:50 | pause | v0.1.0 | main | Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -> 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage. |
 | 2026-09-17 00:54 | pause | v0.1.0 | main | Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee |
 | 2026-09-17 00:53 | pause | v0.1.0 | main | Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee |

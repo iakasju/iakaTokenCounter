@@ -28,5 +28,15 @@
     "dirty": false,
     "files": 145,
     "note": "Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -> 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage."
+  },
+  {
+    "date": "2026-09-17 01:52",
+    "reason": "manual",
+    "version": "v0.1.0",
+    "branch": "main",
+    "commit": "e473a29 chore(iakatokencounter): update etat des lieux + commit global (pause)",
+    "dirty": false,
+    "files": 145,
+    "note": "Re-rendu HTML apres mise a jour du recit de reprise"
   }
 ]
