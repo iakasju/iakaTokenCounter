@@ -24,6 +24,13 @@ use iakatc_daemon::mqtt::MqttPublisher;
 /// Version publiee dans `meta/daemon/version` (suit la version du crate).
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Filet de securite B : resync complet periodique meme connecte, pour borner a ~10 min toute
+/// divergence silencieuse entre l'etat du daemon et le retained du broker (la dedup differentielle
+/// ne republie plus un topic inchange, donc un retained perdu sans coupure TCP visible ne serait
+/// sinon jamais rattrape avant le prochain changement de valeur). Constante nommee, pas de
+/// configuration nouvelle (cf. instruction § B, etape 9).
+const PERIODIC_FULL_RESYNC_EVERY_N_TICKS: u64 = 10;
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("statusline-capture") {
@@ -47,8 +54,15 @@ fn run_daemon() {
     );
     let publisher = MqttPublisher::connect(&cfg);
 
+    let mut tick_count: u64 = 0;
     loop {
         tick(&cfg, &publisher);
+        tick_count += 1;
+        if tick_count.is_multiple_of(PERIODIC_FULL_RESYNC_EVERY_N_TICKS) {
+            // Filet de securite B : republie tout l'etat connu, dedup ignoree — cf. doc de la
+            // constante et `MqttPublisher::force_resync`.
+            publisher.force_resync();
+        }
         std::thread::sleep(cfg.tick);
     }
 }
@@ -111,10 +125,11 @@ fn tick(cfg: &DaemonConfig, publisher: &MqttPublisher) {
     );
     let stats = publisher.publish_batch(&messages);
     eprintln!(
-        "[iakatc] tick {} — {} emis / {} publies / {} perdus (broker {})",
+        "[iakatc] tick {} — {} emis / {} publies / {} inchanges (sautes) / {} perdus (broker {})",
         now,
         stats.emitted,
         stats.published,
+        stats.skipped,
         stats.lost,
         if broker_connected {
             "connecte"

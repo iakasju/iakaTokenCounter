@@ -12,8 +12,19 @@
 //! depuis le thread d'event-loop (`connection.iter()`) : ce thread est le seul a drainer le
 //! channel, y attendre reviendrait a s'auto-bloquer (deadlock). Le resync sur `ConnAck` est donc
 //! delegue a un thread court dedie, protege par un drapeau anti-empilement.
+//!
+//! **Publication differentielle (B)** : un topic dont la valeur `v` n'a pas change **et** dont le
+//! dernier envoi a ete confirme n'est pas republie au tick suivant. La dedup porte **uniquement**
+//! sur `v` (jamais sur le payload complet ni sur `t`, qui change a chaque tick et rendrait toute
+//! dedup naive inoperante). Un envoi non confirme (perte, hors-ligne) est **toujours** reemis au
+//! tick suivant meme a `v` inchange (`TopicState::sent`, invariant deja pose par A). Le resync,
+//! qu'il soit declenche par un `ConnAck` ou par le filet de securite periodique
+//! (`MqttPublisher::force_resync`, appele tous les `PERIODIC_FULL_RESYNC_EVERY_N_TICKS` ticks
+//! depuis `main.rs`), **ignore toujours la dedup** : il republie l'integralite de l'etat connu,
+//! c'est le seul mecanisme qui repeuple un broker ayant perdu son retained.
 
 use rumqttc::{Client, ClientError, Event, MqttOptions, Packet, QoS};
+use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -47,18 +58,24 @@ const RESYNC_RETRY_BUDGET: Duration = Duration::from_secs(10);
 /// Dernier etat connu d'un topic : la valeur a publier (toujours mise a jour au tick courant) et
 /// le fait qu'elle ait ete confirmee envoyee (poussee avec succes dans le channel rumqttc). Un
 /// topic non envoye est reemis au tick suivant meme si sa valeur n'a pas change (invariant qui
-/// rend la dedup differentielle future sure).
+/// rend la dedup differentielle sure, cf. doc de module § B).
 #[derive(Debug, Clone)]
 struct TopicState {
     payload: String,
+    /// Valeur `v` extraite du dernier payload connu — jamais `t` (cf. doc de module). `None` si le
+    /// payload n'a pu etre parse (ne devrait jamais arriver, le contrat garantit `{"v":...,"t":...}`) ;
+    /// dans ce cas la dedup ne s'applique jamais (on republie par securite, cf. `should_publish`).
+    value: Option<Value>,
     sent: bool,
 }
 
-/// Statistiques honnetes d'un lot de publication (log de tick : emis / publies / perdus).
+/// Statistiques honnetes d'un lot de publication (log de tick : emis / publies / sautes / perdus).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PublishStats {
     pub emitted: usize,
     pub published: usize,
+    /// Sautes par la dedup differentielle (B) : valeur `v` inchangee et dernier envoi confirme.
+    pub skipped: usize,
     pub lost: usize,
 }
 
@@ -68,6 +85,9 @@ pub struct MqttPublisher {
     /// Dernier etat connu par topic (source de verite a republier au resync).
     state: Arc<Mutex<HashMap<String, TopicState>>>,
     connected: Arc<AtomicBool>,
+    /// Anti-empilement partage par le resync `ConnAck` et le resync periodique (`force_resync`) :
+    /// un seul resync a la fois, quelle que soit son origine.
+    resyncing: Arc<AtomicBool>,
 }
 
 impl MqttPublisher {
@@ -120,32 +140,58 @@ impl MqttPublisher {
             client,
             state,
             connected,
+            resyncing,
         }
     }
 
+    /// Declenche un resync complet immediat, hors de tout `ConnAck` — le filet de securite
+    /// periodique (cf. doc de module § B) appele par `main.rs` tous les
+    /// `PERIODIC_FULL_RESYNC_EVERY_N_TICKS` ticks. Reutilise exactement le meme mecanisme que le
+    /// resync automatique (thread court dedie, anti-empilement partage) : republie tout l'etat
+    /// connu, dedup ignoree.
+    pub fn force_resync(&self) {
+        spawn_resync(&self.client, &self.state, &self.connected, &self.resyncing);
+    }
+
     /// Publie un lot (un tick) de messages retained QoS 1, sans perte tant que le budget de retry
-    /// n'est pas epuise. Chaque message est retente en cas de file pleine (borne en tentatives et
-    /// en temps, budget partage par tout le lot) ; jamais bloquant indefiniment. Hors-ligne, on ne
-    /// boucle pas : on memorise l'etat et on rend la main immediatement, le resync rattrapera.
-    /// Retourne les compteurs honnetes emis/publies/perdus (jamais un mensonge de type
+    /// n'est pas epuise, et **sans redondance** : un topic dont la valeur `v` n'a pas change et dont
+    /// le dernier envoi a ete confirme est saute (dedup differentielle B, cf. doc de module).
+    /// Chaque message effectivement envoye est retente en cas de file pleine (borne en tentatives
+    /// et en temps, budget partage par tout le lot) ; jamais bloquant indefiniment. Hors-ligne, on
+    /// ne boucle pas : on memorise l'etat et on rend la main immediatement, le resync rattrapera.
+    /// Retourne les compteurs honnetes emis/publies/sautes/perdus (jamais un mensonge de type
     /// `messages.len()`).
     pub fn publish_batch(&self, messages: &[Message]) -> PublishStats {
         let deadline = Instant::now() + BATCH_RETRY_BUDGET;
         let mut published = 0usize;
+        let mut skipped = 0usize;
         let mut lost = 0usize;
 
         for m in messages {
-            {
+            let new_value = extract_v(&m.payload);
+
+            let skip = {
                 let mut s = self.state.lock().unwrap();
+                let skip = !should_publish(s.get(&m.topic), &new_value);
                 s.entry(m.topic.clone())
                     .and_modify(|e| {
                         e.payload = m.payload.clone();
-                        e.sent = false;
+                        e.value = new_value.clone();
+                        if !skip {
+                            e.sent = false;
+                        }
                     })
                     .or_insert_with(|| TopicState {
                         payload: m.payload.clone(),
+                        value: new_value.clone(),
                         sent: false,
                     });
+                skip
+            };
+
+            if skip {
+                skipped += 1;
+                continue;
             }
 
             let ok = try_send_with_retry(
@@ -168,6 +214,7 @@ impl MqttPublisher {
         PublishStats {
             emitted: messages.len(),
             published,
+            skipped,
             lost,
         }
     }
@@ -230,6 +277,28 @@ fn try_send_with_retry(
                 return false;
             }
         }
+    }
+}
+
+/// Extrait le champ `v` d'un payload `{"v":...,"t":...}` — jamais `t`, qui change a chaque tick et
+/// rendrait toute dedup naive inoperante (cf. doc de module § B). `None` si le payload n'est pas un
+/// JSON exploitable (ne devrait jamais arriver, le contrat garantit ce format) : un payload
+/// illisible n'est jamais considere egal a une valeur precedente, on republie par securite.
+fn extract_v(payload: &str) -> Option<Value> {
+    serde_json::from_str::<Value>(payload)
+        .ok()
+        .and_then(|val| val.get("v").cloned())
+}
+
+/// Dedup differentielle (B) — pure, testable sans reseau. Un topic doit etre republie sauf s'il a
+/// **deja** un etat connu, que ce dernier envoi a ete **confirme** (`sent`), et que la nouvelle
+/// valeur `v` est **strictement egale** a la precedente. Un topic jamais vu, une valeur qui change,
+/// ou un envoi precedent non confirme (perte, hors-ligne) republient toujours — c'est l'invariant
+/// qui rend la dedup sure (B2) : on ne remplace jamais un bug de perte par un bug de silence.
+fn should_publish(prev: Option<&TopicState>, new_value: &Option<Value>) -> bool {
+    match prev {
+        None => true,
+        Some(p) => !(p.sent && new_value.is_some() && p.value == *new_value),
     }
 }
 
@@ -296,6 +365,7 @@ mod tests {
             "b/topic".to_string(),
             TopicState {
                 payload: "2".to_string(),
+                value: Some(Value::from(2)),
                 sent: true,
             },
         );
@@ -303,6 +373,7 @@ mod tests {
             "a/topic".to_string(),
             TopicState {
                 payload: "1".to_string(),
+                value: Some(Value::from(1)),
                 sent: false,
             },
         );
@@ -310,6 +381,7 @@ mod tests {
             "c/topic".to_string(),
             TopicState {
                 payload: "3".to_string(),
+                value: Some(Value::from(3)),
                 sent: true,
             },
         );
@@ -324,6 +396,91 @@ mod tests {
                 ("c/topic".to_string(), "3".to_string()),
             ],
             "le resync doit publier tout l'etat, tries par topic, sans filtrer sur `sent`"
+        );
+    }
+
+    // --- B1/B2 : dedup differentielle (should_publish), pure, sans reseau ---
+
+    #[test]
+    fn extract_v_isole_la_valeur_et_ignore_t() {
+        assert_eq!(extract_v(r#"{"v":1,"t":111}"#), Some(Value::from(1)));
+        assert_eq!(
+            extract_v(r#"{"v":1,"t":222}"#),
+            Some(Value::from(1)),
+            "un `t` different ne doit rien changer a la valeur extraite"
+        );
+        assert_eq!(
+            extract_v(r#"{"v":"official","t":1}"#),
+            Some(Value::from("official"))
+        );
+        assert_eq!(extract_v(r#"{"v":null,"t":1}"#), Some(Value::Null));
+        assert_eq!(
+            extract_v("pas du json"),
+            None,
+            "payload illisible => aucune valeur extraite, jamais compare egal"
+        );
+    }
+
+    #[test]
+    fn should_publish_republie_un_topic_jamais_vu() {
+        assert!(should_publish(None, &Some(Value::from(1))));
+    }
+
+    /// B1(a) — valeur `v` inchangee et dernier envoi confirme => pas de republication, malgre `t`
+    /// qui change (`t` n'entre meme pas dans cette fonction, cf. `extract_v`).
+    #[test]
+    fn should_publish_false_si_valeur_inchangee_et_envoi_confirme() {
+        let prev = TopicState {
+            payload: r#"{"v":1,"t":1}"#.to_string(),
+            value: Some(Value::from(1)),
+            sent: true,
+        };
+        assert!(
+            !should_publish(Some(&prev), &Some(Value::from(1))),
+            "meme v, envoi deja confirme => saute"
+        );
+    }
+
+    /// B1(b) — valeur `v` differente => republication.
+    #[test]
+    fn should_publish_true_si_valeur_changee() {
+        let prev = TopicState {
+            payload: r#"{"v":1,"t":1}"#.to_string(),
+            value: Some(Value::from(1)),
+            sent: true,
+        };
+        assert!(
+            should_publish(Some(&prev), &Some(Value::from(2))),
+            "v different => republication"
+        );
+    }
+
+    /// B2 — le critere le plus important : un envoi precedent **non confirme** (perte, hors-ligne)
+    /// doit etre reemis au tick suivant meme si `v` n'a pas change. Sans cet invariant, la dedup
+    /// remplacerait un bug de perte par un bug de silence permanent.
+    #[test]
+    fn should_publish_true_si_envoi_precedent_non_confirme_meme_a_valeur_inchangee() {
+        let prev = TopicState {
+            payload: r#"{"v":1,"t":1}"#.to_string(),
+            value: Some(Value::from(1)),
+            sent: false,
+        };
+        assert!(
+            should_publish(Some(&prev), &Some(Value::from(1))),
+            "envoi precedent non confirme => reemission meme a v inchange"
+        );
+    }
+
+    #[test]
+    fn should_publish_true_si_nouvelle_valeur_illisible() {
+        let prev = TopicState {
+            payload: r#"{"v":1,"t":1}"#.to_string(),
+            value: Some(Value::from(1)),
+            sent: true,
+        };
+        assert!(
+            should_publish(Some(&prev), &None),
+            "valeur illisible => jamais consideree egale, on republie par securite"
         );
     }
 }
