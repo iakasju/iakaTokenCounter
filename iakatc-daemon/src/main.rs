@@ -109,13 +109,17 @@ fn tick(cfg: &DaemonConfig, publisher: &MqttPublisher) {
         VERSION,
         now,
     );
-    for m in &messages {
-        publisher.publish(&m.topic, &m.payload);
-    }
+    let stats = publisher.publish_batch(&messages);
     eprintln!(
-        "[iakatc] tick {} — {} codes publies (broker {})",
+        "[iakatc] tick {} — {} emis / {} publies / {} perdus (broker {})",
         now,
-        messages.len(),
-        if broker_connected { "connecte" } else { "hors-ligne" }
+        stats.emitted,
+        stats.published,
+        stats.lost,
+        if broker_connected {
+            "connecte"
+        } else {
+            "hors-ligne"
+        }
     );
 }
