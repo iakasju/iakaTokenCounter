@@ -202,9 +202,12 @@ Sur l'**axe ia** (`ia/agents/{provider}/{agent}/…`), ce sont les mêmes tokens
 
 ## 4. Politique retained : `current` vs `last`
 
-**Sémantique retained (vérifiée)** : le broker conserve **un** message par topic, l'**écrase** à
-chaque nouveau publish, et le sert **immédiatement** à tout nouvel abonné. Modèle « dernière valeur
-connue » — exactement ce que veut un code scalaire retained.
+**Sémantique retained (vérifiée)** : le broker conserve **un** message par topic et l'**écrase** à
+chaque nouveau publish — modèle « dernière valeur connue », exactement ce que veut un code scalaire
+retained. **Il ne le sert *immédiatement* à tout nouvel abonné que sous un plafond** : au-delà de
+**100 topics matchant un même filtre** (QoS ≥ 1, cf. encadré ci-dessous), le rattrapage à
+l'abonnement est **tronqué**, pas retardé. L'affirmation « servi immédiatement, sans réserve » était
+fausse au-delà de ce plafond ; elle ne l'est plus ici.
 
 | Suffixe | Sémantique | Écriture | Retained |
 |---|---|---|---|
@@ -229,6 +232,43 @@ connue » — exactement ce que veut un code scalaire retained.
 portée par le **`t`** du payload — un subscriber considère un `current` comme **périmé** si `t`
 dépasse son seuil de fraîcheur local, ou (pour le quota) si `now > resets_at/current`. Purge d'un code
 = **payload vide 0 octet en retained**.
+
+> ### Plafond de rattrapage du retained (garde-plafond-retained-broker.md)
+>
+> **La règle.** Sur `rumqttd`, à la **première** lecture d'un abonnement, le rattrapage des topics
+> retained matchant **un filtre donné** est plafonné à **100** pour un abonné **QoS ≥ 1** (le cas du
+> tray) et à **200** pour un abonné **QoS 0** (typiquement une sonde de debug). Le plafond
+> s'applique **par filtre et par connexion** ; l'excédent est un **sous-ensemble arbitraire**
+> (ordre non spécifié d'un `HashMap`, pas un préfixe) et la troncature est **définitive** — l'excès
+> n'est **jamais** relu sur la même connexion, ce n'est pas un débit bridé qui rattrape avec le
+> temps.
+>
+> **Référence de code** (`rumqttd` 0.19, inchangé sur le `main` amont, dernière version publiée
+> 0.20) : `router/routing.rs:1455-1467` (`forward_device_data`, troncature et
+> `forward_retained = false`) et `router/iobufs.rs:18` (`MAX_INFLIGHT`, la **constante de
+> compilation** valant 100 qui pilote réellement cette fenêtre pour QoS ≥ 1).
+>
+> **`max_inflight_count` (config TOML) ne pilote pas ce plafond.** Le nom trompe : cette clé est
+> passée à `Network::new(...)` en position `max_connection_buffer_len` — un **tampon réseau**, rien
+> d'autre (`server/broker.rs:498-503`, `link/network.rs:43-58`). La monter ne change rien au
+> plafond de rattrapage ; voir le commentaire posé directement au-dessus de la clé dans
+> `iakahub/rumqttd.toml`.
+>
+> **Seuil de rupture, chiffré.** Le filtre quota du tray croît de **7 topics par réservoir** (2
+> fenêtres × ~3,5 codes), soit **14 par compte IA surveillé**. Il franchit 100 au **15ᵉ réservoir**,
+> c'est-à-dire au **8ᵉ compte IA**. Constantes nommées dans le contrat (`iakatc-core`) :
+> `RETAINED_FANOUT_CEILING = 100` et `RETAINED_BACKLOG_ALERT = 80` (seuil d'alerte, journalisé par
+> le daemon avant que la troncature ne frappe).
+>
+> **Mécanisme de rattrapage.** Un abonné tronqué se répare au **resync complet périodique** du
+> daemon (tous les `PERIODIC_FULL_RESYNC_EVERY_N_TICKS` ticks, `iakatc-daemon/src/main.rs`) — c'est
+> aujourd'hui le **seul** chemin qui republie l'état intégral en ignorant la dédup différentielle.
+>
+> **Piège de sondage.** Un total qui tombe **pile sur 100 ou 200** en sondant `#` sur ce broker est
+> un **artefact de transport**, pas un inventaire réel de topics — c'est précisément ce plafond, pas
+> le nombre vrai de topics retenus. Geste sûr : compter côté **broker** (pas via un abonné plafonné),
+> ou sonder par **filtres étroits** (chacun restant sous 100), ou lire l'**état publié par le
+> daemon** plutôt qu'un ré-abonnement `#`.
 
 ---
 
