@@ -134,6 +134,7 @@ fn tick(cfg: &DaemonConfig, publisher: &MqttPublisher) {
         now,
     );
     let stats = publisher.publish_batch(&messages);
+    warn_on_retained_backlog(&cfg.root, &messages);
     eprintln!(
         "[iakatc] tick {} — {} emis / {} publies / {} inchanges (sautes) / {} perdus (broker {})",
         now,
@@ -147,4 +148,24 @@ fn tick(cfg: &DaemonConfig, publisher: &MqttPublisher) {
             "hors-ligne"
         }
     );
+}
+
+/// Garde-fou C6 (garde-plafond-retained-broker.md) : avertit, filtre par filtre, quand le nombre
+/// de topics du **lot complet du contrat** (`messages` = `tick_messages`, pas `stats.published`)
+/// couverts par un filtre de consommateur atteint `RETAINED_BACKLOG_ALERT`. Compter sur le lot
+/// complet et non sur ce qui a ete effectivement publie ce tick est delibere : avec la dedup
+/// differentielle (lot B), un tick ne republie plus tous les topics inchanges — compter sur
+/// `stats.published` rendrait ce garde-fou aveugle sans que personne ne le voie (cf. § Risques de
+/// l'instruction). Silencieux sous le seuil : aucun log ajoute tant qu'aucun filtre n'approche le
+/// plafond.
+fn warn_on_retained_backlog(root: &str, messages: &[iakatc_core::publish::Message]) {
+    let filters = contract::consumer_filters(root);
+    for (filter, count) in contract::backlog_by_filter(messages, &filters) {
+        if count >= contract::RETAINED_BACKLOG_ALERT {
+            eprintln!(
+                "[iakatc] ATTENTION retained : le filtre '{filter}' couvre {count} topics (plafond dur {}) — un abonne qui se (re)connecte au-dela de ce plafond ne recevra qu'une partie de son etat initial",
+                contract::RETAINED_FANOUT_CEILING
+            );
+        }
+    }
 }
