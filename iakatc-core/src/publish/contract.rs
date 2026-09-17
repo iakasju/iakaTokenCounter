@@ -16,6 +16,66 @@ use std::collections::BTreeMap;
 /// Suffixe d'etat par defaut : la valeur vivante du tick courant.
 const CURRENT: &str = "current";
 
+/// Les **deux** filtres de souscription du tray (contrat § 4, QoS 1) — seule definition ; le tray
+/// (`src-tauri/src/mqtt_sub.rs`) consomme cette fonction au lieu de reconstruire les chaines.
+pub fn consumer_filters(root: &str) -> Vec<String> {
+    vec![
+        format!("{root}/all/ia/+/+/quota/#"),
+        format!("{root}/meta/daemon/#"),
+    ]
+}
+
+/// Plafond dur et **definitif** du rattrapage retained a l'abonnement, cote `rumqttd` (QoS >= 1,
+/// par filtre, a la premiere lecture de l'abonnement). Ce n'est **pas** une fenetre qui se
+/// debloque : passe ce nombre, l'exces est **tronque une fois pour toutes** (`forward_retained`
+/// bascule a `false` juste apres). Ce n'est **pas** pilote par `max_inflight_count` du TOML (une
+/// taille de tampon reseau, cf. `iakahub/rumqttd.toml`) mais par `MAX_INFLIGHT`, une **constante de
+/// compilation** de `rumqttd` valant 100 (verifiee non configurable). References de code :
+/// `rumqttd-0.19.0/src/router/iobufs.rs:18` (constante) et
+/// `rumqttd-0.19.0/src/router/routing.rs:1455-1467` (troncature, `forward_retained`).
+pub const RETAINED_FANOUT_CEILING: usize = 100;
+
+/// Seuil d'alerte (80 % de [`RETAINED_FANOUT_CEILING`]) : au-dela, un filtre de consommateur
+/// approche le plafond dur et merite un avertissement avant que la troncature ne le frappe pour de
+/// bon (cf. `iakatc-daemon/src/main.rs`).
+pub const RETAINED_BACKLOG_ALERT: usize = 80;
+
+/// Vrai si `topic` matche le filtre de souscription MQTT `filter` (`+` = un niveau, `#` = le reste,
+/// doit etre en derniere position). Matcher **local et minimal** : `core` ne depend pas de
+/// `rumqttc` aujourd'hui et ce lot n'est pas le bon endroit pour l'y faire entrer (cf. instruction
+/// garde-plafond-retained-broker.md § etape 1).
+fn topic_matches_filter(topic: &str, filter: &str) -> bool {
+    let mut t = topic.split('/');
+    let mut f = filter.split('/');
+    loop {
+        match (f.next(), t.next()) {
+            (Some("#"), _) => return true,
+            (Some("+"), Some(_)) => continue,
+            (Some("+"), None) => return false,
+            (Some(fs), Some(ts)) if fs == ts => continue,
+            (Some(_), _) => return false,
+            (None, None) => return true,
+            (None, Some(_)) => return false,
+        }
+    }
+}
+
+/// Fonction **pure** : compte, pour chaque filtre, combien de `messages` d'un lot (typiquement
+/// `tick_messages`, **pas** ce qui a ete effectivement publie apres dedup — cf. § Risques de
+/// l'instruction) il matche. Ordre de sortie = ordre de `filters`.
+pub fn backlog_by_filter(messages: &[Message], filters: &[String]) -> Vec<(String, usize)> {
+    filters
+        .iter()
+        .map(|filter| {
+            let count = messages
+                .iter()
+                .filter(|m| topic_matches_filter(&m.topic, filter))
+                .count();
+            (filter.clone(), count)
+        })
+        .collect()
+}
+
 /// Payload scalaire `{v,t}` — l'ordre des champs (`v` puis `t`) est garanti par serde (struct).
 #[derive(Serialize)]
 struct Payload {
@@ -367,5 +427,160 @@ mod tests {
         );
         assert!(msgs.iter().all(|m| m.topic.starts_with("iakatokencounter/meta/daemon/")));
         assert_eq!(msgs.len(), 4); // state, last_tick_at, broker_connected, version
+    }
+
+    // --- Garde-fou plafond retained (garde-plafond-retained-broker.md) ---
+
+    fn reservoir(account: &str, window: Window) -> Reservoir {
+        Reservoir {
+            provider: "claude".into(),
+            account: account.into(),
+            window,
+            used_pct: Some(10.0),
+            remaining_pct: Some(90.0),
+            used_tokens: Some(1000),
+            resets_at: Some(T),
+            captured_at: Some(T),
+            confidence: Confidence::Official,
+            source: Some(Source::Statusline),
+        }
+    }
+
+    fn reservoirs_5h(n: usize) -> Vec<Reservoir> {
+        (0..n)
+            .map(|i| reservoir(&format!("acct{i}"), Window::FiveHour))
+            .collect()
+    }
+
+    /// C1 : reconstruit le tick representatif mesure au cadrage — 5 reservoirs sur 4 comptes (un
+    /// compte porte 5h+7d), 44 projets, 1 couple (provider, agent) — et verifie qu'il totalise
+    /// **227** topics dont **exactement 35** sous le filtre quota et **4** sous le filtre meta,
+    /// soit **39/227** : le tray n'est pas expose aujourd'hui.
+    #[test]
+    fn c1_backlog_par_filtre_mesure_39_sur_227_tick_representatif() {
+        let root = "iakatokencounter";
+
+        let reservoirs = vec![
+            reservoir("acct0", Window::FiveHour),
+            reservoir("acct0", Window::SevenDay),
+            reservoir("acct1", Window::FiveHour),
+            reservoir("acct2", Window::FiveHour),
+            reservoir("acct3", Window::FiveHour),
+        ];
+        let mut messages = quota(root, &reservoirs, T);
+        messages.extend(limits(root, &Config::default(), &pairs_of(&reservoirs), T));
+
+        let mut by_project = BTreeMap::new();
+        for i in 0..44 {
+            by_project.insert(
+                (format!("project{i}"), Agent::Coordinator),
+                Tokens {
+                    input: 1,
+                    output: 1,
+                    cache: 1,
+                },
+            );
+        }
+        messages.extend(conso_project_agent(root, &by_project, T));
+
+        let mut by_provider = BTreeMap::new();
+        by_provider.insert(
+            (Provider::Claude, Agent::Coordinator),
+            Tokens {
+                input: 1,
+                output: 1,
+                cache: 1,
+            },
+        );
+        messages.extend(conso_provider_agent(root, &by_provider, T));
+
+        messages.extend(meta(root, "up", T, true, "0.1.0", T));
+
+        assert_eq!(messages.len(), 227, "tick representatif attendu a 227 topics au total");
+
+        let filters = consumer_filters(root);
+        let backlog = backlog_by_filter(&messages, &filters);
+        assert_eq!(
+            backlog,
+            vec![(filters[0].clone(), 35), (filters[1].clone(), 4)]
+        );
+        assert_eq!(backlog.iter().map(|(_, c)| c).sum::<usize>(), 39);
+    }
+
+    /// C2 : le filtre quota franchit le plafond dur exactement au 15e reservoir (7 codes x 15 =
+    /// 105 > 100), soit le 8e compte IA surveille ; a 14 il reste en-dessous (98 < 100).
+    #[test]
+    fn c2_seuil_de_rupture_fige_au_15e_reservoir_8e_compte() {
+        let root = "iakatokencounter";
+        let filters = consumer_filters(root);
+
+        let messages_14 = quota(root, &reservoirs_5h(14), T);
+        let backlog_14 = backlog_by_filter(&messages_14, &filters);
+        assert_eq!(backlog_14[0].1, 98);
+        assert!(backlog_14[0].1 < RETAINED_FANOUT_CEILING);
+
+        let messages_15 = quota(root, &reservoirs_5h(15), T);
+        let backlog_15 = backlog_by_filter(&messages_15, &filters);
+        assert_eq!(
+            backlog_15[0].1, 105,
+            "le 15e reservoir (8e compte IA) doit franchir le plafond"
+        );
+        assert!(backlog_15[0].1 > RETAINED_FANOUT_CEILING);
+    }
+
+    /// Sous 5 reservoirs (etat courant), le filtre quota reste sous le seuil d'alerte.
+    #[test]
+    fn sous_le_seuil_dalerte_a_5_reservoirs() {
+        let root = "iakatokencounter";
+        let filters = consumer_filters(root);
+        let messages = quota(root, &reservoirs_5h(5), T);
+        let backlog = backlog_by_filter(&messages, &filters);
+        assert!(backlog[0].1 < RETAINED_BACKLOG_ALERT);
+    }
+
+    /// C3 : aucun topic de conso (les deux axes) ni de limits ne matche l'un des deux filtres du
+    /// tray — le segment litteral `quota` (ou `ia` pour l'axe projet) les arrete tous.
+    #[test]
+    fn c3_aucun_topic_conso_ni_limits_ne_matche_les_filtres_du_tray() {
+        let root = "iakatokencounter";
+        let filters = consumer_filters(root);
+
+        let mut by_project = BTreeMap::new();
+        by_project.insert(
+            ("iakaTokenCounter".to_string(), Agent::Coordinator),
+            Tokens {
+                input: 1,
+                output: 1,
+                cache: 1,
+            },
+        );
+        let conso_pa = conso_project_agent(root, &by_project, T);
+
+        let mut by_provider = BTreeMap::new();
+        by_provider.insert(
+            (Provider::Claude, Agent::Coordinator),
+            Tokens {
+                input: 1,
+                output: 1,
+                cache: 1,
+            },
+        );
+        let conso_ia = conso_provider_agent(root, &by_provider, T);
+
+        let limits_msgs = limits(
+            root,
+            &Config::default(),
+            &[("claude".to_string(), "max".to_string())],
+            T,
+        );
+
+        for msgs in [&conso_pa, &conso_ia, &limits_msgs] {
+            let backlog = backlog_by_filter(msgs, &filters);
+            let total: usize = backlog.iter().map(|(_, c)| c).sum();
+            assert_eq!(
+                total, 0,
+                "aucun de ces topics ne doit matcher les filtres du tray: {msgs:?}"
+            );
+        }
     }
 }
