@@ -30,8 +30,9 @@ fn run(app: AppHandle, cfg: TrayConfig) {
     }
     let (client, mut connection) = Client::new(opts, 128);
 
-    let quota_sub = format!("{}/all/ia/+/+/quota/#", cfg.root);
-    let meta_sub = format!("{}/meta/daemon/#", cfg.root);
+    // Source unique des filtres (contrat, garde-plafond-retained-broker.md § C7) : le tray ne
+    // reconstruit plus ses chaines, il consomme celles du contrat.
+    let filters = iakatc_core::publish::contract::consumer_filters(&cfg.root);
 
     // `connection.iter()` boucle indefiniment et gere la reconnexion : on ne sort jamais.
     for notification in connection.iter() {
@@ -39,8 +40,9 @@ fn run(app: AppHandle, cfg: TrayConfig) {
             Ok(Event::Incoming(Packet::ConnAck(_))) => {
                 set_connected(&app, true);
                 // (Re)abonnements a chaque connexion : le retained repeuple immediatement.
-                let _ = client.subscribe(&quota_sub, QoS::AtLeastOnce);
-                let _ = client.subscribe(&meta_sub, QoS::AtLeastOnce);
+                for filter in &filters {
+                    let _ = client.subscribe(filter, QoS::AtLeastOnce);
+                }
                 push_state(&app);
             }
             Ok(Event::Incoming(Packet::Publish(p))) => {
@@ -86,4 +88,23 @@ pub fn push_state(app: &AppHandle) {
     // Recompose l'icone (logo + reservoirs du pire compte) a chaque maj d'etat (D2/D3).
     crate::tray::update_icon(app, &snapshot.reservoirs);
     let _ = app.emit(STATE_EVENT, &snapshot);
+}
+
+#[cfg(test)]
+mod tests {
+    use iakatc_core::publish::contract::consumer_filters;
+
+    /// C7 (garde-plafond-retained-broker.md) : non-regression sur les deux chaines exactes
+    /// souscrites par le tray avant ce lot (`mqtt_sub.rs:33-34` historique).
+    #[test]
+    fn consumer_filters_produit_les_deux_chaines_historiques_du_tray() {
+        let filters = consumer_filters("iakatokencounter");
+        assert_eq!(
+            filters,
+            vec![
+                "iakatokencounter/all/ia/+/+/quota/#".to_string(),
+                "iakatokencounter/meta/daemon/#".to_string(),
+            ]
+        );
+    }
 }
