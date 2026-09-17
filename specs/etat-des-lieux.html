@@ -24,17 +24,18 @@ code{font-family:'SF Mono',Consolas,monospace;background:rgba(200,164,78,.1);col
 footer{margin-top:3rem;padding-top:1.2rem;border-top:1px solid #1f1f1f;color:#555;font-size:.78rem;}
 </style></head><body>
 <h1>Etat des lieux - <span class="accent">iakaTokenCounter</span></h1>
-<div class="sub">Genere le 2026-09-17 01:52 - motif : manual - a regenerer a chaque version et a chaque pause/reprise.</div>
+<div class="sub">Genere le 2026-09-17 08:36 - motif : manual - a regenerer a chaque version et a chaque pause/reprise.</div>
 <h2>Etat courant</h2>
 <div class="kv">
   <div class="k">Version</div><div>v0.1.0</div>
   <div class="k">Branche</div><div>main</div>
-  <div class="k">Dernier commit</div><div><code>e473a29 chore(iakatokencounter): update etat des lieux + commit global (pause)</code></div>
-  <div class="k">Arbre</div><div><span class='ok'>propre</span></div>
+  <div class="k">Dernier commit</div><div><code>c20d4b5 docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour</code></div>
+  <div class="k">Arbre</div><div><span class='bad'>modifications non commitees</span></div>
   <div class="k">Fichiers</div><div>145 (suivis + non ignores)</div>
-  <div class='k'>Note</div><div>Re-rendu HTML apres mise a jour du recit de reprise</div>
+  <div class='k'>Note</div><div>Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles</div>
 </div>
-<h2>Commits recents</h2><table><tr><th>Hash</th><th>Date</th><th>Sujet</th></tr><tr><td><code>e473a29</code></td><td>2026-09-17</td><td>chore(iakatokencounter): update etat des lieux + commit global (pause)</td></tr>
+<h2>Commits recents</h2><table><tr><th>Hash</th><th>Date</th><th>Sujet</th></tr><tr><td><code>c20d4b5</code></td><td>2026-09-17</td><td>docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour</td></tr>
+<tr><td><code>e473a29</code></td><td>2026-09-17</td><td>chore(iakatokencounter): update etat des lieux + commit global (pause)</td></tr>
 <tr><td><code>46722bb</code></td><td>2026-09-17</td><td>docs(instructions): cadre le garde-fou du plafond de retained cote broker</td></tr>
 <tr><td><code>15c3607</code></td><td>2026-09-17</td><td>test(daemon): couvre B1/B3 par des tests d'integration (dedup + resync)</td></tr>
 <tr><td><code>552f685</code></td><td>2026-09-17</td><td>docs(mqtt): le resync periodique est le seul chemin de reparation d'un abonne tronque</td></tr>
@@ -43,10 +44,10 @@ footer{margin-top:3rem;padding-top:1.2rem;border-top:1px solid #1f1f1f;color:#55
 <tr><td><code>ec59f3a</code></td><td>2026-09-17</td><td>chore(iakatokencounter): update etat des lieux + commit global (pause)</td></tr>
 <tr><td><code>9db95bf</code></td><td>2026-09-16</td><td>fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1)</td></tr>
 <tr><td><code>2207aec</code></td><td>2026-09-16</td><td>test(daemon): integration A1/A2 — lot de 300 sans perte, hors-ligne borne</td></tr>
-<tr><td><code>8879652</code></td><td>2026-09-16</td><td>fix(mqtt): transport sans perte, budget de retry borne, resync hors event-loop</td></tr>
 </table>
 <h2>Journal (versions &amp; pauses)</h2>
 <table><tr><th>Date</th><th>Motif</th><th>Version</th><th>Branche</th><th>Note</th></tr>
+<tr><td>2026-09-17 08:36</td><td><span class='r r-manual'>manual</span></td><td>v0.1.0</td><td>main</td><td>Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles</td></tr>
 <tr><td>2026-09-17 01:52</td><td><span class='r r-manual'>manual</span></td><td>v0.1.0</td><td>main</td><td>Re-rendu HTML apres mise a jour du recit de reprise</td></tr>
 <tr><td>2026-09-17 01:50</td><td><span class='r r-pause'>pause</span></td><td>v0.1.0</td><td>main</td><td>Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -&gt; 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage.</td></tr>
 <tr><td>2026-09-17 00:54</td><td><span class='r r-pause'>pause</span></td><td>v0.1.0</td><td>main</td><td>Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee</td></tr>

@@ -38,5 +38,15 @@
     "dirty": false,
     "files": 145,
     "note": "Re-rendu HTML apres mise a jour du recit de reprise"
+  },
+  {
+    "date": "2026-09-17 08:36",
+    "reason": "manual",
+    "version": "v0.1.0",
+    "branch": "main",
+    "commit": "c20d4b5 docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour",
+    "dirty": true,
+    "files": 145,
+    "note": "Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles"
   }
 ]

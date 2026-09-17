@@ -1,6 +1,6 @@
 # Etat des lieux - iakaTokenCounter
 
-> Genere par iakaframe (CLI) le 2026-09-17 01:52 (motif: manual).
+> Genere par iakaframe (CLI) le 2026-09-17 08:36 (motif: manual).
 > A regenerer a chaque changement de version et a chaque pause/reprise.
 
 ## Etat courant
@@ -9,15 +9,16 @@
 |---|---|
 | Version | v0.1.0 |
 | Branche | main |
-| Dernier commit | e473a29 chore(iakatokencounter): update etat des lieux + commit global (pause) |
-| Arbre | propre |
+| Dernier commit | c20d4b5 docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour |
+| Arbre | MODIFICATIONS NON COMMITEES |
 | Fichiers (suivis + non ignores) | 145 |
-| Note | Re-rendu HTML apres mise a jour du recit de reprise |
+| Note | Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles |
 
 ## Commits recents
 
 | Hash | Date | Sujet |
 |---|---|---|
+| `c20d4b5` | 2026-09-17 | docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour |
 | `e473a29` | 2026-09-17 | chore(iakatokencounter): update etat des lieux + commit global (pause) |
 | `46722bb` | 2026-09-17 | docs(instructions): cadre le garde-fou du plafond de retained cote broker |
 | `15c3607` | 2026-09-17 | test(daemon): couvre B1/B3 par des tests d'integration (dedup + resync) |
@@ -27,7 +28,6 @@
 | `ec59f3a` | 2026-09-17 | chore(iakatokencounter): update etat des lieux + commit global (pause) |
 | `9db95bf` | 2026-09-16 | fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1) |
 | `2207aec` | 2026-09-16 | test(daemon): integration A1/A2 — lot de 300 sans perte, hors-ligne borne |
-| `8879652` | 2026-09-16 | fix(mqtt): transport sans perte, budget de retry borne, resync hors event-loop |
 
 ## Reprise du travail (a completer par Cowork)
 
@@ -86,11 +86,33 @@
      que les deux cles font reellement, **aucune valeur modifiee**. iakahub etant un backbone
      partage, l'arbitrage appartient au decideur. Refus coherent : le commentaire irait alors
      dans le contrat MQTT seul.
-- **Prochaine etape concrete** : **rebuild + reinstallation de l'app** pour que le lot B prenne
-  effet sur le poste. Le binaire de `/Applications` porte aujourd'hui le lot A seul.
-  Sequence obligatoire : `bash scripts/prepare-sidecar.sh` **puis** `npm run tauri build` **puis**
-  remplacement de `/Applications/iakaTokenCounter.app` (voir le premier piege ci-dessous).
+- **Deploiement local : fait.** L'app de `/Applications` porte **le lot A + le lot B**
+  (daemon `c28f026d…`). Sidecars regeneres, bundle rebuild, remplacement et relance verifies.
+  Observation en conditions reelles apres 3 ticks : quota `claude/max` en `confidence: "official"`
+  sur les deux fenetres, valeurs coherentes (5h : `used_pct` 1 + `remaining_pct` 99 = 100 ;
+  7j : 53 + 47 = 100), et **39 topics sur 47 figes au `t` du premier tick** — c'est-a-dire
+  non republies parce qu'inchanges. La dedup travaille.
+- **Prochaine etape concrete** : rien de technique en attente. Les deux decisions ci-dessus
+  appartiennent au decideur. Candidat suivant si besoin d'un sujet : la fraicheur de l'icone du
+  tray (dernier piege de cette liste).
 - **Pieges connus** :
+  - **⚠ LE CRITERE DE DIAGNOSTIC S'EST INVERSE AVEC LE LOT B — a lire avant de rediagnostiquer
+    quoi que ce soit sur ce broker.** Pendant tout le lot A, le signe de sante etait « **un seul
+    `t` distinct par famille** » : le daemon republiant les 227 codes a chaque tick, des `t`
+    disperses trahissaient des pertes. **Depuis le lot B, cette metrique est FAUSSE** : un code
+    inchange n'est plus republie, donc il **garde legitimement un `t` ancien**. Mesure reelle
+    apres deploiement : 39 topics sur 47 figes au `t` du premier tick, 8 au tick suivant (ceux
+    dont la valeur bougeait), `meta/daemon/last_tick_at` au tick courant (son `v` **est** l'epoch
+    du tick, il change donc par construction). **C'est le fonctionnement nominal, pas une
+    regression.**
+    **Le bon critere est desormais la coherence des VALEURS entre elles, pas l'identite des
+    timestamps** : `used_pct + remaining_pct = 100`, et `confidence != "none"` des lors que
+    `remaining_pct` est non-null. Le bug d'origine se signalait par une incoherence de valeurs
+    (`remaining_pct = 99` a cote de `confidence: "none"` et `used_pct: null`), pas seulement par
+    des `t` divergents. Exemple sain releve apres deploiement du lot B, ou les 7 codes d'une meme
+    fenetre portent deux `t` differents **et tout va bien** : `confidence`/`remaining_pct`/
+    `resets_at`/`source`/`used_pct` au `t` du 1er tick (stables), `captured_at`/`used_tokens` au
+    tick suivant (ils bougent).
   - **Le daemon n'est pas compile par `npm run tauri build`.** C'est un sidecar
     (`bundle.externalBin`). Toute correction dans `iakatc-daemon` exige
     `bash scripts/prepare-sidecar.sh` **avant** le build, sinon on rebundle l'ancien binaire
@@ -149,6 +171,7 @@
 
 | Date | Motif | Version | Branche | Note |
 |---|---|---|---|---|
+| 2026-09-17 08:36 | manual | v0.1.0 | main | Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles |
 | 2026-09-17 01:52 | manual | v0.1.0 | main | Re-rendu HTML apres mise a jour du recit de reprise |
 | 2026-09-17 01:50 | pause | v0.1.0 | main | Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -> 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage. |
 | 2026-09-17 00:54 | pause | v0.1.0 | main | Correctif transport MQTT sans perte (lot A + point 9) : 227 emis / 227 recus au lieu de 65, quota de nouveau publie, app rebuildee et reinstallee, recette a froid validee |
