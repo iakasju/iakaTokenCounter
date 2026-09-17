@@ -1,6 +1,6 @@
 # Etat des lieux - iakaTokenCounter
 
-> Genere par iakaframe (CLI) le 2026-09-17 08:36 (motif: manual).
+> Genere par iakaframe (CLI) le 2026-09-17 09:09 (motif: pause).
 > A regenerer a chaque changement de version et a chaque pause/reprise.
 
 ## Etat courant
@@ -9,25 +9,25 @@
 |---|---|
 | Version | v0.1.0 |
 | Branche | main |
-| Dernier commit | c20d4b5 docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour |
+| Dernier commit | 77e85db docs(iakahub): commente le piege des deux cles retained/inflight du TOML |
 | Arbre | MODIFICATIONS NON COMMITEES |
-| Fichiers (suivis + non ignores) | 145 |
-| Note | Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles |
+| Fichiers (suivis + non ignores) | 146 |
+| Note | Troisieme lot livre : garde-plafond retained, gate Legolas PASS (C1-C10). Les deux decisions du decideur sont rendues, aucune en attente. |
 
 ## Commits recents
 
 | Hash | Date | Sujet |
 |---|---|---|
+| `77e85db` | 2026-09-17 | docs(iakahub): commente le piege des deux cles retained/inflight du TOML |
+| `e9e289a` | 2026-09-17 | docs(contrat-mqtt): corrige la servabilite immediate du retained + plafond de rattrapage |
+| `39d4955` | 2026-09-17 | test(iakahub): caracterise le plafond de rattrapage retained contre le vrai broker |
+| `a4b071d` | 2026-09-17 | feat(daemon): avertit au tick quand un filtre approche le plafond retained |
+| `174fe26` | 2026-09-17 | refactor(tray): mqtt_sub consomme consumer_filters du contrat (source unique) |
+| `43b6dda` | 2026-09-17 | feat(core): garde-fou plafond retained — filtres, constantes et comptage par filtre |
+| `ce4f841` | 2026-09-17 | docs(etat-des-lieux): lot B deploye + inversion du critere de diagnostic |
 | `c20d4b5` | 2026-09-17 | docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour |
 | `e473a29` | 2026-09-17 | chore(iakatokencounter): update etat des lieux + commit global (pause) |
 | `46722bb` | 2026-09-17 | docs(instructions): cadre le garde-fou du plafond de retained cote broker |
-| `15c3607` | 2026-09-17 | test(daemon): couvre B1/B3 par des tests d'integration (dedup + resync) |
-| `552f685` | 2026-09-17 | docs(mqtt): le resync periodique est le seul chemin de reparation d'un abonne tronque |
-| `8c1f4cb` | 2026-09-17 | feat(mqtt): publication differentielle + resync periodique (lot B) |
-| `56de18e` | 2026-09-17 | test(daemon): couvre A3 (resync sur reconnexion) par un test d'integration reseau |
-| `ec59f3a` | 2026-09-17 | chore(iakatokencounter): update etat des lieux + commit global (pause) |
-| `9db95bf` | 2026-09-16 | fix(config): defaut de broker du daemon aligne sur iakahub local (127.0.0.1) |
-| `2207aec` | 2026-09-16 | test(daemon): integration A1/A2 — lot de 300 sans perte, hors-ligne borne |
 
 ## Reprise du travail (a completer par Cowork)
 
@@ -76,25 +76,43 @@
     tombant exactement au 10e.
   - **Cadrage `garde-plafond-retained-broker.md` depose** (`46722bb`), **non valide, non
     implemente** — voir « En cours ».
+- **Troisieme lot livre : garde-plafond retained** (`43b6dda` → `77e85db`, 6 commits).
+  **Les deux decisions du decideur ont ete rendues** : instruction **validee**, commentaire dans
+  `iakahub/rumqttd.toml` **autorise**. Une montee de plafond a 150 a ete envisagee puis
+  **annulee** par le decideur — elle etait de toute facon inoperante (le plafond est une
+  constante de compilation, pas une valeur de config). **Aucun seuil n'est configurable**, et
+  c'est deliberé : ni variable d'environnement, ni option de surcharge.
+  Contenu : `consumer_filters` / `RETAINED_FANOUT_CEILING = 100` / `RETAINED_BACKLOG_ALERT = 80` /
+  `backlog_by_filter` dans `iakatc-core/src/publish/contract.rs` (matcher MQTT local, pas de
+  dependance `rumqttc` ajoutee a `core`) ; `src-tauri/src/mqtt_sub.rs` consomme les filtres du
+  contrat au lieu de les reconstruire ; `warn_on_retained_backlog` au tick dans
+  `iakatc-daemon/src/main.rs` (silencieux sous le seuil) ; test de caracterisation
+  `iakahub/tests/retained_backlog_ceiling.rs` ; corrections du contrat MQTT ; commentaires du TOML.
+  **Gate Legolas : PASS, C1 a C10, aucune reserve bloquante.** Il a verifie lui-meme le diff du
+  backbone (commentaires seuls, valeurs intactes), l'absence de porte derobee sur les seuils,
+  l'identite caractere pour caractere des filtres du tray, et relance **8 fois** le test hors
+  seuil (assertion stricte `== 100`, pas de `#[ignore]`, pas d'assertion molle).
+  **Reserve non bloquante consignee** : le garde-fou compte sur le lot complet du contrat (bon
+  choix — compter sur ce qui sort apres dedup le rendrait aveugle quand rien ne bouge), mais un
+  compte **retire** de la configuration laisserait son retained au broker sans disparaitre du
+  compte, d'ou une sous-estimation. Aucun mecanisme de purge de compte retire n'existe, ni avant
+  ni apres ce lot. A cadrer separement si le besoin apparait.
 - **En cours / a reprendre** : rien en cours, arbre propre, `main` synchronise avec `origin`.
-  **Deux decisions attendent le decideur :**
-  1. **Valider ou non l'instruction `specs/instructions/garde-plafond-retained-broker.md`**
-     (~0,5 j-h). Conclusion de Gandalf : *rien a reparer aujourd'hui, tout a outiller*. Marge
-     chiffree : **3 comptes IA** avant de franchir le seuil (7 topics par reservoir, seuil atteint
-     au 8e compte ; 5 reservoirs aujourd'hui).
-  2. **Autoriser ou non une touche unique a `iakahub/rumqttd.toml`** : un commentaire disant ce
-     que les deux cles font reellement, **aucune valeur modifiee**. iakahub etant un backbone
-     partage, l'arbitrage appartient au decideur. Refus coherent : le commentaire irait alors
-     dans le contrat MQTT seul.
+  Aucune decision en attente.
 - **Deploiement local : fait.** L'app de `/Applications` porte **le lot A + le lot B**
   (daemon `c28f026d…`). Sidecars regeneres, bundle rebuild, remplacement et relance verifies.
   Observation en conditions reelles apres 3 ticks : quota `claude/max` en `confidence: "official"`
   sur les deux fenetres, valeurs coherentes (5h : `used_pct` 1 + `remaining_pct` 99 = 100 ;
   7j : 53 + 47 = 100), et **39 topics sur 47 figes au `t` du premier tick** — c'est-a-dire
   non republies parce qu'inchanges. La dedup travaille.
-- **Prochaine etape concrete** : rien de technique en attente. Les deux decisions ci-dessus
-  appartiennent au decideur. Candidat suivant si besoin d'un sujet : la fraicheur de l'icone du
-  tray (dernier piege de cette liste).
+- **Prochaine etape concrete** : **rebuild + reinstallation** quand le decideur le voudra. Le lot
+  garde-plafond a modifie `src-tauri/src/mqtt_sub.rs` et `iakatc-daemon/src/main.rs`, donc le
+  binaire de `/Applications` differe du code — mais **sans aucun changement de comportement
+  visible** (refactorisation a chaines identiques + un avertissement au log qui ne se declenche
+  pas sous le seuil). Rien ne presse, contrairement aux lots A et B.
+  **Candidat suivant si besoin d'un sujet** : la fraicheur de l'icone du tray (avant-dernier piege
+  de cette liste) — c'est le meme defaut de fond que le bug d'origine, afficher une donnee avec
+  plus de confiance qu'elle n'en merite.
 - **Pieges connus** :
   - **⚠ LE CRITERE DE DIAGNOSTIC S'EST INVERSE AVEC LE LOT B — a lire avant de rediagnostiquer
     quoi que ce soit sur ce broker.** Pendant tout le lot A, le signe de sante etait « **un seul
@@ -171,6 +189,7 @@
 
 | Date | Motif | Version | Branche | Note |
 |---|---|---|---|---|
+| 2026-09-17 09:09 | pause | v0.1.0 | main | Troisieme lot livre : garde-plafond retained, gate Legolas PASS (C1-C10). Les deux decisions du decideur sont rendues, aucune en attente. |
 | 2026-09-17 08:36 | manual | v0.1.0 | main | Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles |
 | 2026-09-17 01:52 | manual | v0.1.0 | main | Re-rendu HTML apres mise a jour du recit de reprise |
 | 2026-09-17 01:50 | pause | v0.1.0 | main | Lot A clos (reserve A3 fermee) + lot B livre et gate Legolas PASS : 227 messages par tick -> 1 en regime stable. Cadrage garde-plafond retained depose, en attente d'arbitrage. |

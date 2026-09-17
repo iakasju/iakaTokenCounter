@@ -48,5 +48,15 @@
     "dirty": true,
     "files": 145,
     "note": "Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles"
+  },
+  {
+    "date": "2026-09-17 09:09",
+    "reason": "pause",
+    "version": "v0.1.0",
+    "branch": "main",
+    "commit": "77e85db docs(iakahub): commente le piege des deux cles retained/inflight du TOML",
+    "dirty": true,
+    "files": 146,
+    "note": "Troisieme lot livre : garde-plafond retained, gate Legolas PASS (C1-C10). Les deux decisions du decideur sont rendues, aucune en attente."
   }
 ]
