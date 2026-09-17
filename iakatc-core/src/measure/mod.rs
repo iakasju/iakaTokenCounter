@@ -81,3 +81,26 @@ pub struct Measurement {
     pub agent: Agent,
     pub tokens: Tokens,
 }
+
+/// Mesure quotidienne : tokens attribues a un `(day, project, provider, agent)`, pour les DEUX
+/// grandeurs nommees du contrat (`specs/instructions/feature-verite-des-chiffres.md` D3) —
+/// **Travail** (hors cache reutilise) et **Volume total** (y compris). Cle plus fine que
+/// [`Measurement`] (ajoute le jour) ET que la ventilation `ProjectActivity` (ajoute l'agent) :
+/// utilisee par le rollup quotidien (`specs/instructions/feature-memoire-historique.md` D4), pas
+/// par la mesure MQTT (qui reste sur [`Measurement`], inchangee).
+///
+/// `model` : reserve pour le lot L2 (ventilation par modele) ; toujours `None` tant que L2 n'est
+/// pas livre (la purge des transcripts etant irreversible, le champ est prevu des maintenant plutot
+/// que rajoute apres coup une fois la donnee perdue).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DailyMeasurement {
+    pub day: String,
+    pub project: String,
+    pub provider: Provider,
+    pub agent: Agent,
+    pub model: Option<String>,
+    /// Travail = entree fraiche + creation de cache + sortie (hors cache reutilise).
+    pub work: u64,
+    /// Volume total = entree + creation de cache + cache reutilise + sortie.
+    pub volume: u64,
+}

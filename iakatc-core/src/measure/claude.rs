@@ -31,7 +31,7 @@
 //!   affiche le `cwd` complet (`ProjectEconomy::example_cwd`) pour lever l'ambiguite au cas par
 //!   cas.
 
-use super::{Agent, Measurement, Provider, Tokens};
+use super::{Agent, DailyMeasurement, Measurement, Provider, Tokens};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -81,7 +81,7 @@ pub(crate) const OUT_OF_PROJECT_BUCKET: &str = "hors projet";
 /// Reduit un nom de projet BRUT (sortie de [`project_of`]) a sa forme affichee : identique, sauf
 /// s'il s'agit d'une racine de portefeuille connue, auquel cas il tombe dans
 /// [`OUT_OF_PROJECT_BUCKET`] (D4).
-fn bucket_project(raw: String) -> String {
+pub(crate) fn bucket_project(raw: String) -> String {
     if PORTFOLIO_ROOTS.contains(&raw.as_str()) {
         OUT_OF_PROJECT_BUCKET.to_string()
     } else {
@@ -569,6 +569,125 @@ pub fn scan_claude_measurements(projects_dir: &Path) -> Vec<Measurement> {
     finalize_measurements(acc)
 }
 
+// ================ Ventilation quotidienne par agent, deux grandeurs (L1 memoire-historique) ================
+//
+// Le rollup quotidien (D4 de `specs/instructions/feature-memoire-historique.md`) a besoin d'une
+// grille plus fine que les deux folds existants : `fold_activity_line` bucke par (projet, jour)
+// mais fusionne coordinateur/sous-agent ; `fold_measure_line` ventile par (projet, agent) mais
+// fusionne tous les jours. Ce fold combine les DEUX axes (jour + agent) ET porte les deux grandeurs
+// nommees (Travail hors `cache_read`, Volume total avec) en une seule passe sur les MEMES lignes —
+// ce n'est pas un troisieme moteur de mesure, juste une cle plus fine sur les memes
+// enregistrements ; les formules sont identiques a celles de `fold_activity_line`
+// (Travail) et `fold_measure_line`/`Tokens::used` (Volume total). LECTURE SEULE, defensif.
+
+/// Accumulateur quotidien : `(jour, projet, agent) -> (travail, volume total)`.
+type DailyAcc = HashMap<(String, String, Agent), (u64, u64)>;
+
+/// Integre UNE ligne JSONL dans l'accumulateur quotidien. PUR/testable.
+pub fn fold_daily_line(acc: &mut DailyAcc, line: &str) {
+    let line = line.trim();
+    if line.is_empty() {
+        return;
+    }
+    let v: Value = match serde_json::from_str(line) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    if v.get("type").and_then(Value::as_str) != Some("assistant") {
+        return;
+    }
+    let usage = match v.get("message").and_then(|m| m.get("usage")) {
+        Some(u) => u,
+        None => return,
+    };
+    let n = |k: &str| usage.get(k).and_then(Value::as_u64).unwrap_or(0);
+    let input = n("input_tokens");
+    let cache_creation = n("cache_creation_input_tokens");
+    let cache_read = n("cache_read_input_tokens");
+    let output = n("output_tokens");
+    let work = input + cache_creation + output; // Travail : hors cache_read.
+    let volume = work + cache_read; // Volume total : y compris cache_read.
+    if volume == 0 {
+        return;
+    }
+    let project = match v.get("cwd").and_then(Value::as_str).and_then(project_of) {
+        Some(p) => p,
+        None => return,
+    };
+    let day = match v.get("timestamp").and_then(Value::as_str).and_then(day_of) {
+        Some(d) => d,
+        None => return,
+    };
+    let agent = if v
+        .get("isSidechain")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        Agent::Subagent
+    } else {
+        Agent::Coordinator
+    };
+    let e = acc.entry((day, project, agent)).or_default();
+    e.0 += work;
+    e.1 += volume;
+}
+
+/// Integre UN FICHIER complet dans l'accumulateur quotidien (D2, dedup par `message.id`).
+pub fn fold_file_daily(acc: &mut DailyAcc, content: &str) {
+    for line in dedup_lines_by_message_id(content) {
+        fold_daily_line(acc, line);
+    }
+}
+
+/// Applique le bucket portefeuille (D4 verite-des-chiffres) aux cles de l'accumulateur quotidien.
+fn bucketed_daily(acc: DailyAcc) -> DailyAcc {
+    let mut out: DailyAcc = HashMap::new();
+    for ((day, project, agent), (work, volume)) in acc {
+        let e = out.entry((day, bucket_project(project), agent)).or_insert((0, 0));
+        e.0 += work;
+        e.1 += volume;
+    }
+    out
+}
+
+/// Convertit l'accumulateur quotidien en liste (jour, projet, agent croissants), `model = None`
+/// (reserve L2), `provider = Claude`.
+pub fn finalize_daily(acc: DailyAcc) -> Vec<DailyMeasurement> {
+    let acc = bucketed_daily(acc);
+    let mut out: Vec<DailyMeasurement> = acc
+        .into_iter()
+        .map(|((day, project, agent), (work, volume))| DailyMeasurement {
+            day,
+            project,
+            provider: Provider::Claude,
+            agent,
+            model: None,
+            work,
+            volume,
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        a.day
+            .cmp(&b.day)
+            .then(a.project.cmp(&b.project))
+            .then(a.agent.code().cmp(b.agent.code()))
+    });
+    out
+}
+
+/// Scanne RECURSIVEMENT le dossier `projects/` de Claude Code et produit les mesures quotidiennes
+/// par `(jour, projet, agent)`, dedupliquant chaque fichier par `message.id` (D2). Source des
+/// rollups quotidiens (D4 de `feature-memoire-historique.md`). Defensif.
+pub fn scan_claude_daily(projects_dir: &Path) -> Vec<DailyMeasurement> {
+    let mut acc: DailyAcc = HashMap::new();
+    for p in claude_transcript_files(projects_dir) {
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            fold_file_daily(&mut acc, &content);
+        }
+    }
+    finalize_daily(acc)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -984,5 +1103,144 @@ mod tests {
             .sum();
         assert_eq!(pre_l0_total, 9210, "modele du defaut (avant L0) change de valeur sur fixture");
         assert_eq!(l0_total, 7360, "total L0 (recursif + deduplique) change de valeur sur fixture");
+    }
+
+    // ---------------- Ventilation quotidienne par agent, deux grandeurs (L1) ----------------
+
+    #[test]
+    fn fold_daily_travail_hors_cache_read_volume_total_avec() {
+        let mut acc = DailyAcc::new();
+        fold_daily_line(
+            &mut acc,
+            r#"{"type":"assistant","timestamp":"2026-06-30T10:00:00Z","cwd":"/w/p","message":{"usage":{"input_tokens":100,"cache_creation_input_tokens":30,"cache_read_input_tokens":9999,"output_tokens":20}}}"#,
+        );
+        let (work, volume) = acc[&("2026-06-30".to_string(), "p".to_string(), Agent::Coordinator)];
+        assert_eq!(work, 150); // 100 + 30 + 20, cache_read EXCLU (Travail)
+        assert_eq!(volume, 10149); // 150 + 9999 (Volume total)
+    }
+
+    #[test]
+    fn fold_daily_separe_jour_et_agent() {
+        let mut acc = DailyAcc::new();
+        fold_daily_line(
+            &mut acc,
+            r#"{"type":"assistant","timestamp":"2026-06-29T10:00:00Z","cwd":"/w/p","message":{"usage":{"input_tokens":10,"output_tokens":5}}}"#,
+        );
+        fold_daily_line(
+            &mut acc,
+            r#"{"type":"assistant","isSidechain":true,"timestamp":"2026-06-29T11:00:00Z","cwd":"/w/p","message":{"usage":{"input_tokens":8,"output_tokens":3}}}"#,
+        );
+        fold_daily_line(
+            &mut acc,
+            r#"{"type":"assistant","timestamp":"2026-06-30T10:00:00Z","cwd":"/w/p","message":{"usage":{"input_tokens":1,"output_tokens":1}}}"#,
+        );
+        assert_eq!(acc.len(), 3); // 2 jours x agents distincts + jour 2 coord seul
+        assert_eq!(
+            acc[&("2026-06-29".to_string(), "p".to_string(), Agent::Coordinator)],
+            (15, 15)
+        );
+        assert_eq!(
+            acc[&("2026-06-29".to_string(), "p".to_string(), Agent::Subagent)],
+            (11, 11)
+        );
+        assert_eq!(
+            acc[&("2026-06-30".to_string(), "p".to_string(), Agent::Coordinator)],
+            (2, 2)
+        );
+    }
+
+    #[test]
+    fn finalize_daily_bucket_portefeuille_et_tri() {
+        let mut acc = DailyAcc::new();
+        acc.insert(
+            ("2026-06-30".into(), "work".into(), Agent::Coordinator),
+            (10, 10),
+        );
+        acc.insert(
+            ("2026-06-30".into(), "Desktop".into(), Agent::Coordinator),
+            (5, 5),
+        );
+        let out = finalize_daily(acc);
+        assert_eq!(out.len(), 1); // work + Desktop fusionnes sous le seau
+        assert_eq!(out[0].project, OUT_OF_PROJECT_BUCKET);
+        assert_eq!(out[0].work, 15);
+        assert!(out[0].model.is_none());
+        assert_eq!(out[0].provider, Provider::Claude);
+    }
+
+    #[test]
+    fn fold_file_daily_deduplique_par_message_id() {
+        let content = concat!(
+            r#"{"type":"assistant","timestamp":"2026-06-30T10:00:00Z","cwd":"/w/p","message":{"id":"dup","usage":{"input_tokens":100,"output_tokens":50}}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-06-30T10:00:00Z","cwd":"/w/p","message":{"id":"dup","usage":{"input_tokens":100,"output_tokens":50}}}"#,
+        );
+        let mut acc = DailyAcc::new();
+        fold_file_daily(&mut acc, content);
+        let (work, _) = acc[&("2026-06-30".to_string(), "p".to_string(), Agent::Coordinator)];
+        assert_eq!(work, 150); // 1 seule occurrence, pas 300
+    }
+
+    #[test]
+    fn scan_claude_daily_travail_egale_scan_projects_activity_sur_fixtures() {
+        // Le "Travail" quotidien, somme sur tous les agents d'un (jour, projet), doit coincider
+        // EXACTEMENT avec `scan_projects_activity` (meme formule, cle plus fine ici). Contre-epreuve
+        // de non-regression de l'agregat existant (garde-fou de la consigne "dis-le plutot que de
+        // le faire silencieusement").
+        let dir = mock_claude_dir();
+        let daily = scan_claude_daily(&dir);
+        let activity = scan_projects_activity(&dir, 999);
+
+        let mut daily_by_day_project: HashMap<(String, String), u64> = HashMap::new();
+        for d in &daily {
+            *daily_by_day_project
+                .entry((d.day.clone(), d.project.clone()))
+                .or_insert(0) += d.work;
+        }
+        assert!(!activity.is_empty(), "fixture attendue non vide");
+        for a in &activity {
+            for day in &a.days {
+                let got = daily_by_day_project
+                    .get(&(day.date.clone(), a.project.clone()))
+                    .copied()
+                    .unwrap_or(0);
+                assert_eq!(
+                    got, day.tokens,
+                    "Travail divergent pour {}/{}",
+                    a.project, day.date
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scan_claude_daily_volume_total_egale_measurements_sur_fixtures() {
+        // Le "Volume total" quotidien, somme sur tous les jours d'un (projet, agent), doit
+        // coincider EXACTEMENT avec `Tokens::used()` de `scan_claude_measurements` (meme
+        // formule input+output y compris caches, cle plus fine ici).
+        let dir = mock_claude_dir();
+        let daily = scan_claude_daily(&dir);
+        let measurements = scan_claude_measurements(&dir);
+
+        let mut daily_by_project_agent: HashMap<(String, Agent), u64> = HashMap::new();
+        for d in &daily {
+            *daily_by_project_agent
+                .entry((d.project.clone(), d.agent))
+                .or_insert(0) += d.volume;
+        }
+        assert!(!measurements.is_empty(), "fixture attendue non vide");
+        for m in &measurements {
+            let got = daily_by_project_agent
+                .get(&(m.project.clone(), m.agent))
+                .copied()
+                .unwrap_or(0);
+            assert_eq!(
+                got,
+                m.tokens.used(),
+                "Volume total divergent pour {}/{:?}",
+                m.project,
+                m.agent
+            );
+        }
     }
 }

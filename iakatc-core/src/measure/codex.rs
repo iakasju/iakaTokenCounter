@@ -25,8 +25,8 @@
 //! - `rate_limits.primary.window_minutes` du plan free = **43200 min (30 jours)** : ne correspond
 //!   ni a la fenetre 5h ni a 7d du contrat -> voir [`CodexRateLimit`] / D3 (best-effort, § open).
 
-use super::{Agent, Measurement, Provider, Tokens};
-use crate::measure::claude::project_of;
+use super::{Agent, DailyMeasurement, Measurement, Provider, Tokens};
+use crate::measure::claude::{bucket_project, project_of};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -292,6 +292,96 @@ pub fn scan_codex_activity(sessions_root: &Path, top: usize) -> Vec<ProjectActiv
     finalize_activity(acc, top)
 }
 
+// ================ Ventilation quotidienne, deux grandeurs (L1 memoire-historique) ================
+//
+// Miroir Codex de `claude::scan_claude_daily` : source des rollups quotidiens (D4 de
+// `specs/instructions/feature-memoire-historique.md`). Codex n'a pas de sidechain -> agent
+// toujours `Coordinator`. Reutilise le DELTA par tour (`last_token_usage`, cf. entete de module)
+// deja etabli par `activity_of_token_count` pour le Travail ; le Volume total du meme tour est
+// `input_tokens (incl. caches) + output_tokens` (miroir `Tokens::used()`). LECTURE SEULE.
+
+/// Accumulateur quotidien Codex : `(jour, projet) -> (travail, volume total)`.
+type DailyAcc = HashMap<(String, String), (u64, u64)>;
+
+/// Si `line` est un `token_count`, renvoie `(jour, travail du tour, volume total du tour)`.
+/// `None` sinon. PUR/testable.
+fn daily_of_token_count(line: &str) -> Option<(String, u64, u64)> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let v: Value = serde_json::from_str(line).ok()?;
+    if v.get("type").and_then(Value::as_str) != Some("event_msg") {
+        return None;
+    }
+    let payload = v.get("payload")?;
+    if payload.get("type").and_then(Value::as_str) != Some("token_count") {
+        return None;
+    }
+    let last = payload.get("info").and_then(|i| i.get("last_token_usage"))?;
+    let n = |k: &str| last.get(k).and_then(Value::as_u64).unwrap_or(0);
+    let input_incl_cache = n("input_tokens");
+    let cached = n("cached_input_tokens");
+    let output = n("output_tokens");
+    let volume = input_incl_cache + output; // Volume total : deja incl. le cache reutilise.
+    if volume == 0 {
+        return None;
+    }
+    let work = input_incl_cache.saturating_sub(cached) + output; // Travail : hors cache reutilise.
+    let day = v.get("timestamp").and_then(Value::as_str).and_then(day_of)?;
+    Some((day, work, volume))
+}
+
+/// Integre UN rollout complet dans l'accumulateur quotidien : projet lu dans le `session_meta`,
+/// chaque `token_count` bucke son delta par jour. PUR/testable, defensif.
+pub fn fold_codex_daily(acc: &mut DailyAcc, content: &str) {
+    let project = match rollout_cwd(content).and_then(|c| project_of(&c)) {
+        Some(p) => p,
+        None => return,
+    };
+    for line in content.lines() {
+        if let Some((day, work, volume)) = daily_of_token_count(line) {
+            let e = acc.entry((day, project.clone())).or_default();
+            e.0 += work;
+            e.1 += volume;
+        }
+    }
+}
+
+/// Scanne la racine des sessions Codex et produit les mesures quotidiennes par `(jour, projet)`
+/// (agent = coordinator, `model = None` reserve L2, `provider = Codex`). Applique le bucket
+/// portefeuille (D4 verite-des-chiffres). Defensif : fichier illisible ignore.
+pub fn scan_codex_daily(sessions_root: &Path) -> Vec<DailyMeasurement> {
+    let mut acc: DailyAcc = HashMap::new();
+    for path in walk_jsonl(sessions_root) {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            fold_codex_daily(&mut acc, &content);
+        }
+    }
+    let mut bucketed: DailyAcc = HashMap::new();
+    for ((day, project), (work, volume)) in acc.drain() {
+        let e = bucketed
+            .entry((day, bucket_project(project)))
+            .or_insert((0, 0));
+        e.0 += work;
+        e.1 += volume;
+    }
+    let mut out: Vec<DailyMeasurement> = bucketed
+        .into_iter()
+        .map(|((day, project), (work, volume))| DailyMeasurement {
+            day,
+            project,
+            provider: Provider::Codex,
+            agent: Agent::Coordinator,
+            model: None,
+            work,
+            volume,
+        })
+        .collect();
+    out.sort_by(|a, b| a.day.cmp(&b.day).then(a.project.cmp(&b.project)));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -457,5 +547,75 @@ mod tests {
         assert_eq!(project, "codex-recette");
         assert!(tokens.used() > 0, "used_tokens Codex doit etre > 0");
         assert!(!rl.is_empty(), "la fixture reelle porte des rate_limits");
+    }
+
+    // ---------------- Ventilation quotidienne, deux grandeurs (L1 memoire-historique) ----------------
+
+    #[test]
+    fn daily_of_token_count_travail_hors_cache_volume_total_avec() {
+        // input 12441 (dont 4992 caches), output 25 -> travail = 12441-4992+25 = 7474 ;
+        // volume total = 12441+25 = 12466 (deja incl. le cache reutilise).
+        let line = r#"{"timestamp":"2026-06-29T09:31:36Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":12441,"cached_input_tokens":4992,"output_tokens":25}}}}"#;
+        let (day, work, volume) = daily_of_token_count(line).unwrap();
+        assert_eq!(day, "2026-06-29");
+        assert_eq!(work, 7474);
+        assert_eq!(volume, 12466);
+    }
+
+    #[test]
+    fn fold_codex_daily_bucke_par_jour_et_cumule() {
+        let content = concat!(
+            r#"{"type":"session_meta","payload":{"cwd":"/w/proj-codex"}}"#,
+            "\n",
+            r#"{"timestamp":"2026-06-29T09:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20}}}}"#,
+            "\n",
+            r#"{"timestamp":"2026-06-30T01:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":7,"cached_input_tokens":0,"output_tokens":0}}}}"#,
+            "\n"
+        );
+        let mut acc = DailyAcc::new();
+        fold_codex_daily(&mut acc, content);
+        assert_eq!(
+            acc[&("2026-06-29".to_string(), "proj-codex".to_string())],
+            (120, 120)
+        );
+        assert_eq!(
+            acc[&("2026-06-30".to_string(), "proj-codex".to_string())],
+            (7, 7)
+        );
+    }
+
+    #[test]
+    fn scan_codex_daily_travail_egale_scan_codex_activity_sur_fixture() {
+        let raw = include_str!("../../../specs/mock/codex_rollout_sample.jsonl");
+        let tmp = std::env::temp_dir().join(format!(
+            "iakatc-codex-daily-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(tmp.join("rollout.jsonl"), raw).unwrap();
+
+        let daily = scan_codex_daily(&tmp);
+        let activity = scan_codex_activity(&tmp, 20);
+        assert!(!activity.is_empty(), "fixture attendue non vide");
+        for a in &activity {
+            for day in &a.days {
+                let got: u64 = daily
+                    .iter()
+                    .filter(|d| d.day == day.date && d.project == a.project)
+                    .map(|d| d.work)
+                    .sum();
+                assert_eq!(got, day.tokens, "Travail divergent pour {}/{}", a.project, day.date);
+            }
+        }
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn scan_codex_daily_dossier_absent_serie_vide() {
+        assert!(scan_codex_daily(Path::new("/dossier/qui/n/existe/pas")).is_empty());
     }
 }
