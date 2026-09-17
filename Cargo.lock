@@ -1834,6 +1834,7 @@ name = "iakahub"
 version = "0.1.0"
 dependencies = [
  "ctrlc",
+ "iakatc-core",
  "rumqttc",
  "rumqttd",
  "toml 0.8.2",

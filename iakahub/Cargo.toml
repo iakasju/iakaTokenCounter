@@ -22,3 +22,7 @@ ctrlc = { version = "3", features = ["termination"] }
 
 [dev-dependencies]
 rumqttc = "0.24"
+# Caracterisation du plafond retained (garde-plafond-retained-broker.md) : reutilise les memes
+# filtres/constantes/constructeurs de topics que le contrat, pour tester le broker reel avec des
+# donnees representatives. Couplage assume et borne aux tests (§ Risques de l'instruction).
+iakatc-core = { path = "../iakatc-core" }
