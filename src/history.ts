@@ -67,10 +67,31 @@ export function timelineRows(activity: readonly ProjectActivity[]): Row[] {
     .filter((r) => r.pts.every((b) => !Number.isNaN(b.t)));
 }
 
-/** Timeline scatter : 1 ligne/projet, 1 bulle/jour, rayon ∝ tokens du jour. */
+/**
+ * Formule de la grandeur « Travail » (D3 de feature-verite-des-chiffres.md) : entree fraiche +
+ * creation de cache + sortie, HORS cache reutilise — repond a « combien ai-je fait travailler
+ * l'IA », distincte du « Volume total » (D3) qui repond a « combien cela pese ». Les deux ne se
+ * melangent jamais dans une meme visualisation.
+ */
+const GRANDEUR_TRAVAIL_FORMULE =
+  "Travail = entree fraiche + creation de cache + sortie (hors cache reutilise)";
+
+/** Formule de la grandeur « Volume total » (D3), affichee sur treemap/split/mesure MQTT. */
+const GRANDEUR_VOLUME_TOTAL_FORMULE =
+  "Volume total = entree + creation de cache + cache reutilise + sortie";
+
+function titleWithFormula(text: string, formula: string): HTMLElement {
+  const h2 = el("h2", "viz-title", text);
+  h2.title = formula;
+  return h2;
+}
+
+/** Timeline scatter : 1 ligne/projet, 1 bulle/jour, rayon ∝ tokens du jour. Grandeur « Travail ». */
 export function historyTimeline(activity: readonly ProjectActivity[]): HTMLElement {
   const section = el("section", "viz viz-timeline");
-  section.append(el("h2", "viz-title", "Activite tokens/jour par projet"));
+  section.append(
+    titleWithFormula("Travail — tokens/jour par projet", GRANDEUR_TRAVAIL_FORMULE),
+  );
 
   const rows = timelineRows(activity);
   if (rows.length === 0) {
@@ -172,12 +193,12 @@ export function historyTimeline(activity: readonly ProjectActivity[]): HTMLEleme
 
 // ============================ Treemap par projet (ref. TreemapPanel) ============================
 
-/** Treemap : une tuile par projet, largeur ∝ tokens totaux, pilule coord/sub. */
+/** Treemap : une tuile par projet, largeur ∝ tokens totaux, pilule coord/sub. Grandeur « Volume total ». */
 export function historyTreemap(economy: readonly ProjectEconomy[]): HTMLElement {
   const section = el("section", "viz viz-treemap");
   const items = economy.filter((e) => e.input + e.output > 0);
   const total = items.reduce((s, it) => s + it.input + it.output, 0);
-  const head = el("h2", "viz-title", "Tokens par projet");
+  const head = titleWithFormula("Volume total par projet", GRANDEUR_VOLUME_TOTAL_FORMULE);
   if (total > 0) head.append(el("span", "viz-title-sub", ` · ${fmtTokens(total)}`));
   section.append(head);
 
@@ -193,7 +214,12 @@ export function historyTreemap(economy: readonly ProjectEconomy[]): HTMLElement 
     const cell = el("div", "tcell");
     cell.style.width = `${34 + (tokens / max) * 30}%`;
     cell.style.background = treemapColor(i);
-    cell.title = `${it.project} · ${fmtTokens(tokens)}`;
+    // Infobulle (D4) : nom du projet + volume, et le cwd complet quand on le connait — leve
+    // l'ambiguite d'une collision de feuille (/a/web et /b/web -> "web") et, pour le seau "hors
+    // projet", montre quelle racine de portefeuille contribue.
+    cell.title = it.exampleCwd
+      ? `${it.project} · ${fmtTokens(tokens)}\ncwd : ${it.exampleCwd}`
+      : `${it.project} · ${fmtTokens(tokens)}`;
     cell.append(el("span", "tnm", it.project));
     cell.append(
       el("span", "tv", `${fmtTokens(tokens)} · ${Math.round((tokens / total) * 100)}%`),
@@ -244,10 +270,12 @@ export function splitTotals(economy: readonly ProjectEconomy[]): {
   );
 }
 
-/** Split coordinateur vs sous-agent + totaux input/output. */
+/** Split coordinateur vs sous-agent + totaux input/output. Grandeur « Volume total » (D3). */
 export function historySplit(economy: readonly ProjectEconomy[]): HTMLElement {
   const section = el("section", "viz viz-split");
-  section.append(el("h2", "viz-title", "Coordinateur vs sous-agents"));
+  section.append(
+    titleWithFormula("Coordinateur vs sous-agents — Volume total", GRANDEUR_VOLUME_TOTAL_FORMULE),
+  );
 
   const t = splitTotals(economy);
   if (t.input + t.output === 0) {

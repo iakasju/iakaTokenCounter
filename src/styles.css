@@ -327,6 +327,12 @@ body {
   font-size: 12px;
 }
 
+/* Bandeau de revision des chiffres (D5/etape 9) : meme gabarit que .an-scope, accent distinct
+   pour ne pas etre confondu avec le bandeau de portee de compte. */
+.an-revision {
+  border-left-color: #5aa9e6;
+}
+
 .an-quota,
 .an-history,
 .an-memory {

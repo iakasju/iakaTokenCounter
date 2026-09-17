@@ -13,6 +13,7 @@ mod statusline;
 
 use std::collections::HashMap;
 
+use iakatc_core::measure::cache::{scan_claude_measurements_cached, ScanCache};
 use iakatc_core::measure::{claude, codex, Measurement, Provider};
 use iakatc_core::now_epoch_s;
 use iakatc_core::publish::contract;
@@ -64,9 +65,14 @@ fn run_daemon() {
     );
     let publisher = MqttPublisher::connect(&cfg);
 
+    // Memo par fichier (mtime, taille) du scan mesure Claude (D5) : vit ici, d'un tick a l'autre,
+    // pour tout le cycle de vie du process. Un redemarrage repart d'un memo vide (premier tick =
+    // scan complet). Cf. `iakatc-core::measure::cache` pour pourquoi c'est correct.
+    let mut scan_cache = ScanCache::new();
+
     let mut tick_count: u64 = 0;
     loop {
-        tick(&cfg, &publisher);
+        tick(&cfg, &publisher, &mut scan_cache);
         tick_count += 1;
         if tick_count.is_multiple_of(PERIODIC_FULL_RESYNC_EVERY_N_TICKS) {
             // Filet de securite B : republie tout l'etat connu, dedup ignoree — cf. doc de la
@@ -77,15 +83,18 @@ fn run_daemon() {
     }
 }
 
-/// Un tick : re-scan des logs (recalcul depuis le disque, pas d'increment memoire), fusion du
+/// Un tick : re-scan des logs (recalcul depuis le disque, pas d'increment memoire — le memo D5
+/// evite seulement de RELIRE un fichier inchange, il ne remplace jamais le calcul), fusion du
 /// quota, construction des messages du contrat, publication retained.
-fn tick(cfg: &DaemonConfig, publisher: &MqttPublisher) {
+fn tick(cfg: &DaemonConfig, publisher: &MqttPublisher, scan_cache: &mut ScanCache) {
     let now = now_epoch_s();
 
     // --- Mesure conso (Claude + Codex) ---
     let mut measurements: Vec<Measurement> = Vec::new();
     if let Some(dir) = claude::claude_projects_dir() {
-        measurements.extend(claude::scan_claude_measurements(&dir));
+        // Variante memoisee (D5) : seuls les fichiers dont (mtime, taille) a change depuis le
+        // tick precedent sont relus + re-parses.
+        measurements.extend(scan_claude_measurements_cached(&dir, scan_cache));
     }
     let mut codex_rl = Vec::new();
     if let Some(dir) = codex::codex_sessions_dir() {

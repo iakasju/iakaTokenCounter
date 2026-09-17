@@ -69,6 +69,11 @@ fn codex_economy(sessions_root: &Path, top: usize) -> Vec<ProjectEconomy> {
             output: m.tokens.output,
             coord: m.tokens.output, // Codex = coordinateur uniquement.
             sub: 0,
+            // Infobulle cwd (D4) hors perimetre Codex dans ce lot : ni le doublonnage ni les
+            // sous-agents ne le concernent (`specs/instructions/feature-verite-des-chiffres.md`
+            // § Hors scope). Chaine vide = pas de cwd d'exemple, traitement defensif deja prevu
+            // cote webview.
+            example_cwd: String::new(),
         })
         .collect();
     out.sort_by_key(|p| std::cmp::Reverse(p.input + p.output));
@@ -144,13 +149,16 @@ mod tests {
     fn build_history_claude_sur_fixtures() {
         let dir = mock_claude();
         let h = build_history(HistoryProvider::Claude, Some(&dir), None);
-        // Deux projets (alpha, beta), series non vides.
-        assert_eq!(h.activity.len(), 2);
-        assert_eq!(h.economy.len(), 2);
+        // Trois seaux : alpha, beta, et "hors projet" (fixture -w-work, racine de portefeuille,
+        // D4). Series non vides.
+        assert_eq!(h.activity.len(), 3);
+        assert_eq!(h.economy.len(), 3);
         let projects: Vec<&str> = h.economy.iter().map(|e| e.project.as_str()).collect();
         assert!(projects.contains(&"alpha"));
         assert!(projects.contains(&"beta"));
-        // alpha porte du coordinateur ET du sous-agent (sidechain) -> split honnete.
+        assert!(projects.contains(&"hors projet"));
+        // alpha porte du coordinateur ET du sous-agent (sidechain, y compris ceux de
+        // subagents/agent-1.jsonl, D1) -> split honnete.
         let alpha = h.economy.iter().find(|e| e.project == "alpha").unwrap();
         assert!(alpha.coord > 0, "coord alpha attendu > 0");
         assert!(alpha.sub > 0, "sub alpha (sidechain) attendu > 0");

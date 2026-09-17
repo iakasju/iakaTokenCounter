@@ -72,6 +72,13 @@ export interface ProjectEconomy {
   coord: number;
   /** Tokens de sortie des sous-agents delegues (sidechain ; Codex = 0). */
   sub: number;
+  /**
+   * Un `cwd` complet ayant contribue a ce projet (D4 de feature-verite-des-chiffres.md) : leve
+   * l'ambiguite d'une collision de feuille (`/a/web` et `/b/web` fusionnent tous deux sous `web`)
+   * et, pour le seau "hors projet", montre quelle racine de portefeuille est en cause. Chaine
+   * vide si aucun `cwd` exploitable (Codex, notamment, ne le renseigne pas dans ce lot).
+   */
+  exampleCwd: string;
 }
 
 /** Charge utile de `get_history(provider)`. */

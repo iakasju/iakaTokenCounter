@@ -4,6 +4,7 @@
 //! [`claude::scan_claude_measurements`] et [`codex::scan_codex_measurements`] produisent des
 //! `Vec<Measurement>` homogenes, que `aggregate` re-somme selon les deux axes du contrat.
 
+pub mod cache;
 pub mod claude;
 pub mod codex;
 

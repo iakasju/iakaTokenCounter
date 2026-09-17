@@ -1,3 +1,6 @@
 {"type":"assistant","timestamp":"2026-07-07T10:00:00Z","cwd":"/w/beta","message":{"usage":{"input_tokens":2000,"output_tokens":800}}}
 pas du json (ligne corrompue, doit etre ignoree sans crash)
 {"type":"assistant","timestamp":"2026-07-07T10:10:00Z","cwd":"/w/beta","message":{"usage":{"input_tokens":50,"cache_creation_input_tokens":10,"output_tokens":20}}}
+{"type":"assistant","timestamp":"2026-07-07T10:20:00Z","cwd":"/w/beta","message":{"id":"msg_dup_1","usage":{"input_tokens":900,"output_tokens":300}}}
+{"type":"assistant","timestamp":"2026-07-07T10:21:00Z","cwd":"/w/beta","message":{"id":"msg_dup_1","usage":{"input_tokens":900,"output_tokens":300}}}
+{"type":"assistant","timestamp":"2026-07-07T10:22:00Z","cwd":"/w/beta","message":{"id":"msg_dup_1","usage":{"input_tokens":900,"output_tokens":300}}}

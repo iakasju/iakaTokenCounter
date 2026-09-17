@@ -117,6 +117,17 @@ setText(
     `(les logs ne portent pas l'ID de compte — limitation « account_ambiguous »). ` +
     `Le quota en tete est bien celui du compte « ${account} ».`,
 );
+// Bandeau de revision des chiffres (etape 9 de feature-verite-des-chiffres.md) : les valeurs
+// affichees ci-dessous ont change de definition et d'assiette avec cette version (perimetre de
+// scan elargi aux sous-agents + deduplication des appels comptes plusieurs fois) — sans ce
+// bandeau, le decideur lirait une regression la ou il y a une correction.
+setText(
+  "revision",
+  "Chiffres revises dans cette version : le perimetre de scan inclut desormais les tours " +
+    "delegues aux sous-agents, et chaque appel API n'est plus compte qu'une fois (il etait " +
+    "auparavant comptabilise plusieurs fois). Une hausse par rapport a une version anterieure " +
+    "n'est donc pas une regression de consommation, mais une mesure plus complete et plus juste.",
+);
 
 document.getElementById("refresh")?.addEventListener("click", () => void refresh());
 
