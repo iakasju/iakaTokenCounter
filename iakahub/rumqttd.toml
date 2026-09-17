@@ -7,6 +7,10 @@ id = 0
 
 [router]
 max_connections = 10010
+# NOTE (garde-plafond-retained-broker.md) : plafonne le rattrapage retained a l'abonnement, mais
+# UNIQUEMENT pour les abonnes QoS 0 (sondes de debug, pas le tray qui est QoS 1). La relever est un
+# no-op pour le produit. Cf. specs/contrat-mqtt-conso.md § 4 (encadre "Plafond de rattrapage du
+# retained") pour la regle complete et les references de code rumqttd.
 max_outgoing_packet_count = 200
 max_segment_size = 104857600
 max_segment_count = 10
@@ -19,5 +23,11 @@ next_connection_delay_ms = 1
     [v4.1.connections]
     connection_timeout_ms = 60000
     max_payload_size = 20480
+    # NOTE (garde-plafond-retained-broker.md) : ce nom trompe. Ce n'est PAS la fenetre de
+    # rattrapage retained en QoS >= 1 (celle du tray) : cette fenetre-la est MAX_INFLIGHT = 100,
+    # une CONSTANTE DE COMPILATION de rumqttd (router/iobufs.rs:18), non configurable ici. Cette
+    # cle est passee a Network::new(...) en position max_connection_buffer_len : c'est un TAMPON
+    # RESEAU, rien d'autre (server/broker.rs:498-503, link/network.rs:43-58). La relever ne change
+    # rien au plafond de rattrapage retained. Cf. specs/contrat-mqtt-conso.md § 4.
     max_inflight_count = 100
     dynamic_filters = true
