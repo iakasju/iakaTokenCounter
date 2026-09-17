@@ -1,6 +1,6 @@
 # Etat des lieux - iakaTokenCounter
 
-> Genere par iakaframe (CLI) le 2026-09-17 09:09 (motif: pause).
+> Genere par iakaframe (CLI) le 2026-09-17 14:22 (motif: manual).
 > A regenerer a chaque changement de version et a chaque pause/reprise.
 
 ## Etat courant
@@ -9,25 +9,25 @@
 |---|---|
 | Version | v0.1.0 |
 | Branche | main |
-| Dernier commit | 77e85db docs(iakahub): commente le piege des deux cles retained/inflight du TOML |
+| Dernier commit | 2c5005f feat(measure): fold quotidien (jour, projet, agent) pour Travail et Volume total |
 | Arbre | MODIFICATIONS NON COMMITEES |
-| Fichiers (suivis + non ignores) | 146 |
-| Note | Troisieme lot livre : garde-plafond retained, gate Legolas PASS (C1-C10). Les deux decisions du decideur sont rendues, aucune en attente. |
+| Fichiers (suivis + non ignores) | 154 |
+| Note | Re-rendu HTML apres mise a jour du recit (pause) |
 
 ## Commits recents
 
 | Hash | Date | Sujet |
 |---|---|---|
+| `2c5005f` | 2026-09-17 | feat(measure): fold quotidien (jour, projet, agent) pour Travail et Volume total |
+| `6efa2ab` | 2026-09-17 | fix(measure): verite des chiffres — perimetre recursif + dedup + memo (lot L0) |
+| `426f57b` | 2026-09-17 | docs(instructions): ferme le jalon analytics en trois lots (L0, L1, L2) |
+| `c78cc86` | 2026-09-17 | docs(proposition): outil de statistiques analytics — 7 lots, soumis a arbitrage |
+| `98865c1` | 2026-09-17 | chore(iakatokencounter): update etat des lieux + commit global (pause) |
 | `77e85db` | 2026-09-17 | docs(iakahub): commente le piege des deux cles retained/inflight du TOML |
 | `e9e289a` | 2026-09-17 | docs(contrat-mqtt): corrige la servabilite immediate du retained + plafond de rattrapage |
 | `39d4955` | 2026-09-17 | test(iakahub): caracterise le plafond de rattrapage retained contre le vrai broker |
 | `a4b071d` | 2026-09-17 | feat(daemon): avertit au tick quand un filtre approche le plafond retained |
 | `174fe26` | 2026-09-17 | refactor(tray): mqtt_sub consomme consumer_filters du contrat (source unique) |
-| `43b6dda` | 2026-09-17 | feat(core): garde-fou plafond retained — filtres, constantes et comptage par filtre |
-| `ce4f841` | 2026-09-17 | docs(etat-des-lieux): lot B deploye + inversion du critere de diagnostic |
-| `c20d4b5` | 2026-09-17 | docs(etat-des-lieux): re-rendu HTML avec le recit de reprise a jour |
-| `e473a29` | 2026-09-17 | chore(iakatokencounter): update etat des lieux + commit global (pause) |
-| `46722bb` | 2026-09-17 | docs(instructions): cadre le garde-fou du plafond de retained cote broker |
 
 ## Reprise du travail (a completer par Cowork)
 
@@ -97,22 +97,73 @@
   compte **retire** de la configuration laisserait son retained au broker sans disparaitre du
   compte, d'ou une sous-estimation. Aucun mecanisme de purge de compte retire n'existe, ni avant
   ni apres ce lot. A cadrer separement si le besoin apparait.
-- **En cours / a reprendre** : rien en cours, arbre propre, `main` synchronise avec `origin`.
-  Aucune decision en attente.
+- **Quatrieme chantier : le jalon ANALYTICS** (demande du decideur : « sur double clic, une fenetre
+  de statistiques de l'utilisation des IA ; propose-moi un outil de stats tres riche »).
+  - **Le cadrage a d'abord decouvert deux defauts de mesure**, etablis en execution :
+    1. **Les tours de sous-agents n'etaient jamais lus.** Claude Code les ecrit dans
+       `<session-uuid>/subagents/` ; les trois scans de `measure/claude.rs` descendaient de deux
+       niveaux et sautaient ce repertoire. **533 fichiers, 578 Mo, 69,5 % de la consommation.**
+    2. **Chaque appel API etait compte 1,93 fois** en moyenne (82 646 occurrences pour 42 865
+       `message.id` distincts) — une ligne par bloc de contenu, chacune reportant le meme `usage`.
+    Les deux jouent en sens contraire sans se compenser : l'outil affichait **54 %** de la realite
+    (facteur x1,85). **Recouvrement nul mesure** entre les deux assiettes.
+  - **Cela a clos l'enigme du `used_tokens`** : hors `subagents/` et avec les doublons — exactement
+    ce que faisait le daemon — on retrouve **4 987 013 378**, soit les ~4,96 Md publies sur MQTT.
+  - **Proposition `proposition-analytics-riche.md`** (773 lignes, statut ARBITREE) : 7 lots, dont
+    L3 a L7 **en reserve, non engages**. **Arbitrages du decideur** : jalon **L0+L1+L2**, vue en
+    **tableau de bord de portefeuille** (tous comptes comparables, `open_analytics` devient une
+    mise en evidence et non plus un filtre), **cout affiche en dollars equivalent API**.
+  - **L0 « verite des chiffres » LIVRE, gate Legolas PASS, pousse** (`6efa2ab`) : marche recursive
+    unique, dedup par fichier **au-dessus** des folds par ligne (verifies inchanges octet pour
+    octet), grandeurs nommees « Travail » / « Volume total », seau « hors projet »
+    (`PORTFOLIO_ROOTS`), et **memo par fichier invalide sur `(mtime, taille)`**.
+    Cibles atteintes : total **9,23 Md**, split **30,4 / 69,6**, contre-epreuve a **5,00 Md**.
+    **Le memo etait obligatoire** : L0 multiplie le volume scanne par 5,7 (122 Mo → 701 Mo) et le
+    daemon relit tout **a chaque tick**, ce qui aurait fait ~40 Go d'I/O par heure. Mesure du
+    rapport froid/chaud : **260x** (Gimli) et **1470x** (Legolas) — la valeur absolue a froid
+    depend du cache OS, **c'est le rapport qui est la propriete recherchee**, pas la seconde.
+  - **Reserve non bloquante de Legolas, a traiter dans l'instruction et non dans le code** : le
+    critere « appels uniques 42 870 ± 5 » est **irrealiste sur des logs vivants**. Gimli mesure
+    43 025, Legolas 42 990 — et celle de Legolas est **plus basse alors qu'elle est plus tardive**,
+    donc ce compteur ne derive pas simplement avec le temps. Le total, le split et la contre-epreuve
+    sont eux parfaitement coherents. Deux autres reserves : la contre-epreuve sur donnees reelles
+    n'est pas portee par un test committe (seule la fixture l'est), et l'invalidation du memo par
+    `(mtime, taille)` reste theoriquement contournable hors append-only.
+- **En cours / a reprendre** : **L1 « memoire historique » etait EN COURS chez Gimli au moment de
+  la pause.** Verifier `git log` et `git status` a la reprise : il a pu committer apres ce
+  checkpoint. Contenu attendu : historique de quota a **90 jours** + **rollups quotidiens sans
+  limite**, decalques du patron de `src-tauri/src/memory.rs`, recalcul idempotent, **aucune
+  interface**. Trois vigilances transmises : ne pas annuler le gain du memo de L0 (le tick est
+  retombe a ~12 ms a chaud, ne pas y ajouter une ecriture lourde), prouver l'idempotence du
+  recalcul, et verifier ce que « sans limite » donne apres un an simule.
+  **L1 est prioritaire en sequence bien qu'invisible** : c'est le seul lot dont la valeur depend du
+  temps ecoule depuis son allumage. Le quota ne vit **nulle part** ailleurs — il vient de la
+  statusline, n'est dans aucun log, et MQTT le perd a chaque redemarrage du broker ; pendant ce
+  temps la purge a 30 jours de Claude Code ronge les transcripts par l'autre bout.
+- **Ensuite** : gate Legolas sur L1, puis **L2 « cout equivalent API »**
+  (`feature-cout-equivalent-api.md`, 2 j) — table de tarifs **nommee, isolee et datee**, date de
+  validite **affichee a cote du montant sous peine d'echec du lot**, aucun multiplicateur global de
+  cache (Fable 5.1 ne facture pas sa lecture au meme ratio), aucun modele rabattu sur un voisin,
+  Codex present en volumes **mais sans montant**.
 - **Deploiement local : fait.** L'app de `/Applications` porte **le lot A + le lot B**
   (daemon `c28f026d…`). Sidecars regeneres, bundle rebuild, remplacement et relance verifies.
   Observation en conditions reelles apres 3 ticks : quota `claude/max` en `confidence: "official"`
   sur les deux fenetres, valeurs coherentes (5h : `used_pct` 1 + `remaining_pct` 99 = 100 ;
   7j : 53 + 47 = 100), et **39 topics sur 47 figes au `t` du premier tick** — c'est-a-dire
   non republies parce qu'inchanges. La dedup travaille.
-- **Prochaine etape concrete** : **rebuild + reinstallation** quand le decideur le voudra. Le lot
-  garde-plafond a modifie `src-tauri/src/mqtt_sub.rs` et `iakatc-daemon/src/main.rs`, donc le
-  binaire de `/Applications` differe du code — mais **sans aucun changement de comportement
-  visible** (refactorisation a chaines identiques + un avertissement au log qui ne se declenche
-  pas sous le seuil). Rien ne presse, contrairement aux lots A et B.
-  **Candidat suivant si besoin d'un sujet** : la fraicheur de l'icone du tray (avant-dernier piege
-  de cette liste) — c'est le meme defaut de fond que le bug d'origine, afficher une donnee avec
-  plus de confiance qu'elle n'en merite.
+- **Prochaine etape concrete a la reprise** :
+  1. `git log --oneline -5` et `git status` — **Gimli travaillait sur L1 pendant ce checkpoint**,
+     son commit peut etre arrive apres. Ne rien ecraser sans regarder.
+  2. Si L1 est commite : gate **Legolas**, puis push, puis **L2**.
+  3. Si L1 est incomplet : relire `feature-memoire-historique.md` et relancer Gimli dessus.
+- **Deploiement local** : l'app de `/Applications` porte les lots A, B et garde-plafond, **pas
+  L0**. Un rebuild sera necessaire pour que la correction des chiffres soit visible dans la fenetre
+  analytics. Sequence obligatoire : `bash scripts/prepare-sidecar.sh` **puis**
+  `npm run tauri build` **puis** remplacement de `/Applications/iakaTokenCounter.app`.
+  Sauvegardes des versions precedentes conservees dans le scratchpad de la session du 2026-09-17.
+- **Candidat en reserve, jamais cadre** : la fraicheur de l'icone du tray (avant-dernier piege de
+  cette liste) — meme defaut de fond que le bug qui a ouvert cette session, afficher une donnee
+  avec plus de confiance qu'elle n'en merite.
 - **Pieges connus** :
   - **⚠ LE CRITERE DE DIAGNOSTIC S'EST INVERSE AVEC LE LOT B — a lire avant de rediagnostiquer
     quoi que ce soit sur ce broker.** Pendant tout le lot A, le signe de sante etait « **un seul
@@ -189,6 +240,8 @@
 
 | Date | Motif | Version | Branche | Note |
 |---|---|---|---|---|
+| 2026-09-17 14:22 | manual | v0.1.0 | main | Re-rendu HTML apres mise a jour du recit (pause) |
+| 2026-09-17 14:21 | pause | v0.1.0 | main | Jalon analytics en cours : L0 (verite des chiffres) livre, gate Legolas PASS et pousse. L1 (memoire historique) en cours chez Gimli au moment de la pause. |
 | 2026-09-17 09:09 | pause | v0.1.0 | main | Troisieme lot livre : garde-plafond retained, gate Legolas PASS (C1-C10). Les deux decisions du decideur sont rendues, aucune en attente. |
 | 2026-09-17 08:36 | manual | v0.1.0 | main | Lot B deploye sur le poste : app rebuildee et reinstallee, dedup verifiee en conditions reelles |
 | 2026-09-17 01:52 | manual | v0.1.0 | main | Re-rendu HTML apres mise a jour du recit de reprise |

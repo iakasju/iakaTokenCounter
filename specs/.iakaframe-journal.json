@@ -58,5 +58,25 @@
     "dirty": true,
     "files": 146,
     "note": "Troisieme lot livre : garde-plafond retained, gate Legolas PASS (C1-C10). Les deux decisions du decideur sont rendues, aucune en attente."
+  },
+  {
+    "date": "2026-09-17 14:21",
+    "reason": "pause",
+    "version": "v0.1.0",
+    "branch": "main",
+    "commit": "2c5005f feat(measure): fold quotidien (jour, projet, agent) pour Travail et Volume total",
+    "dirty": true,
+    "files": 153,
+    "note": "Jalon analytics en cours : L0 (verite des chiffres) livre, gate Legolas PASS et pousse. L1 (memoire historique) en cours chez Gimli au moment de la pause."
+  },
+  {
+    "date": "2026-09-17 14:22",
+    "reason": "manual",
+    "version": "v0.1.0",
+    "branch": "main",
+    "commit": "2c5005f feat(measure): fold quotidien (jour, projet, agent) pour Travail et Volume total",
+    "dirty": true,
+    "files": 154,
+    "note": "Re-rendu HTML apres mise a jour du recit (pause)"
   }
 ]

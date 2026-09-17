@@ -36,6 +36,16 @@ impl Window {
             _ => None,
         }
     }
+
+    /// Code stable de la fenetre (miroir de `from_code`) — utilise par `quota_history` pour
+    /// persister la serie sous son code du contrat plutot que sous le nom Rust de la variante.
+    pub fn code(self) -> &'static str {
+        match self {
+            Window::FiveHour => "5h",
+            Window::SevenDay => "7d",
+            Window::ThirtyDay => "30d",
+        }
+    }
 }
 
 /// Etat d'une fenetre de quota (serialise en camelCase pour la webview).

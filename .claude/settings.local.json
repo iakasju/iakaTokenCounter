@@ -1,7 +1,5 @@
 {
-  "//": "Kit iakaframe — auto mode ON par defaut (bypassPermissions). Aucun prompt ; la denylist destructive reste respectee. Filet de securite = commits atomiques frequents (jamais reset --hard / push --force cote IA).",
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(*)",
       "PowerShell(*)",
@@ -9,7 +7,9 @@
       "Edit(*)",
       "Write(*)",
       "Glob(*)",
-      "Grep(*)"
+      "Grep(*)",
+      "Skill(claude-api)",
+      "WebSearch"
     ],
     "deny": [
       "Bash(rm -rf /*)",
@@ -26,6 +26,8 @@
       "Bash(docker compose down --volumes*)",
       "PowerShell(Remove-Item -Recurse -Force C:\\*)",
       "PowerShell(Format-Volume*)"
-    ]
-  }
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "//": "Kit iakaframe — auto mode ON par defaut (bypassPermissions). Aucun prompt ; la denylist destructive reste respectee. Filet de securite = commits atomiques frequents (jamais reset --hard / push --force cote IA)."
 }
