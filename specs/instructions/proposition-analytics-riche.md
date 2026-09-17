@@ -6,7 +6,17 @@
 > d'instructions fermées distinctes, au format habituel (`feature-*.md`), seules consommables par
 > Gimli.
 >
-> Statut : **en attente d'arbitrage**. Date : 2026-09-17.
+> **Statut : ARBITRÉE le 2026-09-17.** Le décideur a retenu **L0 + L1 + L2**, tranché Q2 (tableau
+> de bord de portefeuille) et Q3 (coût affiché en dollars). Les trois lots sont désormais fermés en
+> instructions distinctes, seules consommables par Gimli :
+> `feature-verite-des-chiffres.md` · `feature-memoire-historique.md` ·
+> `feature-cout-equivalent-api.md`.
+> **L3 à L7 restent en réserve, non engagés.** Ce document conserve sa valeur de dossier
+> d'instruction : mesures, raisonnement et options écartées.
+>
+> **Estimation du jalon révisée à 6 j** (et non 5, ni 5,5) : +0,5 j sur L2 pour la vue portefeuille
+> (Q2), +0,5 j sur L0 pour le mémo de scan rendu nécessaire par la mesure du coût permanent du
+> daemon — voir la note de révision 3 ci-dessous.
 >
 > **Révision 2 (même jour) — ampleur corrigée après contre-mesure d'Aragorn.** La première
 > rédaction estimait l'inflation par doublons à « 3 à 5 fois » à partir d'**un seul fichier**, non
@@ -14,6 +24,16 @@
 > corpus entier donne **1,93 en moyenne** et **54 %**. Le diagnostic est inchangé et confirmé — deux
 > défauts réels, indépendants — mais **le facteur de correction est ×1,85, pas ×3,4**. Les chiffres
 > ci-dessous sont ceux de la contre-mesure.
+>
+> **Révision 3 — le lot L7 n'était pas au bon endroit.** Mesure : L0 fait passer l'assiette de scan
+> de **122,4 Mo (52 fichiers) à 701,2 Mo (585 fichiers)**, soit ×5,7. J'avais évalué ce coût du
+> point de vue de la fenêtre analytics, ouverte à la demande — où deux secondes sont acceptables.
+> **C'était le mauvais point de vue : le daemon re-scanne tout à chaque tick, toutes les 60 s**
+> (`iakatc-daemon/src/main.rs:82`), ce qui porterait la lecture de fond à **≈ 40 Go d'I/O par
+> heure** sur une application de tray censée être discrète. Conséquence : la part nécessaire de L7
+> devient un **mémo par fichier invalidé sur `mtime`, obligatoire et intégré à L0** (+0,5 j) ; le
+> reliquat (index persistant, mémo côté GUI) reste en réserve. **Ce n'est pas un coût optionnel :
+> c'est L0 qui crée la charge, c'est à L0 de ne pas dégrader le daemon.**
 
 ---
 
