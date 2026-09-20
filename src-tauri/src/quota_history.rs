@@ -299,6 +299,13 @@ mod tests {
         dir.join(HISTORY_FILE)
     }
 
+    /// `resets_at` fixe (n'avance pas avec `t`) : en usage reel, c'est l'echeance de la fenetre de
+    /// quota, qui ne bouge PAS a chaque echantillon — seulement quand la fenetre elle-meme se
+    /// recharge. Le lier a `t` ferait paraitre chaque nouvel echantillon "change" a tort et
+    /// fausserait les tests de `should_write` (constate : deux echantillons de meme valeur a des
+    /// `t` differents doivent etre vus comme inchanges).
+    const FIXED_RESETS_AT: i64 = 999_999;
+
     fn sample(t: i64, provider: &str, account: &str, window: &str, used_pct: f64) -> QuotaSample {
         QuotaSample {
             t,
@@ -307,7 +314,7 @@ mod tests {
             window: window.to_string(),
             used_pct: Some(used_pct),
             remaining_pct: Some(100.0 - used_pct),
-            resets_at: Some(t + 3600),
+            resets_at: Some(FIXED_RESETS_AT),
             confidence: Some("official".to_string()),
         }
     }
