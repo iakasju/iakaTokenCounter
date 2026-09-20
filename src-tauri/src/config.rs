@@ -11,6 +11,12 @@ pub const DEFAULT_ROOT: &str = "iakatokencounter";
 pub const DEFAULT_HOST: &str = "127.0.0.1";
 pub const DEFAULT_PORT: u16 = 1883;
 
+/// Seuil de liveness par defaut (s) des agents « en cours » (feature-agents-en-cours.md, D2) : un
+/// agent est tournant ssi `now - mtime(transcript) <= N`. Arbitrage decideur entre clignotement
+/// (trop court) et fantomes (trop long) — cf. instruction. Surchargeable par `IAKATC_LIVENESS_SECS`
+/// pour affiner en recette sans rebuild.
+pub const DEFAULT_LIVENESS_SECS: u64 = 90;
+
 /// Configuration d'execution de la GUI tray.
 #[derive(Debug, Clone)]
 pub struct TrayConfig {
@@ -60,4 +66,24 @@ fn hostname() -> String {
     env("HOSTNAME")
         .or_else(|| env("COMPUTERNAME"))
         .unwrap_or_else(|| "host".to_string())
+}
+
+/// Seuil de liveness (s) des agents en cours, lu depuis `IAKATC_LIVENESS_SECS` (meme patron que
+/// les autres variables ci-dessus). Valeur absente/invalide -> [`DEFAULT_LIVENESS_SECS`].
+pub fn liveness_secs_from_env() -> u64 {
+    env("IAKATC_LIVENESS_SECS")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_LIVENESS_SECS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn liveness_defaut_a_90_sans_variable() {
+        // On ne touche pas reellement a l'environnement du process de test (partage entre tests
+        // paralleles) : on verifie seulement la valeur de repli directement.
+        assert_eq!(DEFAULT_LIVENESS_SECS, 90);
+    }
 }
