@@ -37,6 +37,11 @@ le **badge de confiance** (official / official_stale / local_estimate `~` / none
 **1 barre** si le compte n'a qu'une fenêtre de quota. Pas de dessin rond.
 
 ### D2 — Icône tray : logo officiel + 2 mini-réservoirs
+
+> **Canvas étendu à 54 × 18** (@2x 108 × 36) par `feature-agents-en-cours.md` (D6), qui ajoute
+> une zone « compteur d'agents en cours » à droite. Les cotes ci-dessous restent **inchangées**
+> et font foi pour les 40 premiers pixels.
+
 Composer une icône **couleur (non-template)** selon `docs/design/tray-icon-spec.html` :
 - **Canvas 40 × 18 px (@2x 80 × 36)** ; zone logo **16×16** à (1,1) ; deux pistes-réservoir
   **18×5** (pilule r 2,5) aux origines (20,3) et (20,10) ; repli 1 barre centrée à (20, 6.5).
