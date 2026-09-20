@@ -71,6 +71,26 @@ pub fn run() {
             } else {
                 eprintln!("[iakatc-tray] app_data_dir indisponible — sampler memoire desactive.");
             }
+
+            // Memoire de l'historique (feature-memoire-historique.md, L1) : meme repertoire de
+            // donnees que le moniteur memoire. Deux journaux distincts (D2) :
+            // - quota_history : sampler continu 5 min (ou point horaire force), retention 90 j ;
+            // - rollups : recalcul a l'ouverture de la vue analytics (state::open_analytics) ET
+            //   une fois par jour depuis un thread de fond (D5/etape 5), sans limite de retention.
+            // Echec de resolution = pas de crash (les deux samplers sautent, comme la memoire).
+            if let Ok(data_dir) = handle.path().app_data_dir() {
+                *handle.state::<AppState>().quota_history.lock().unwrap() =
+                    quota_history::QuotaLog::in_dir(&data_dir);
+                quota_history::start_sampler(handle.clone());
+
+                *handle.state::<AppState>().rollups.lock().unwrap() =
+                    rollups::RollupsLog::in_dir(&data_dir);
+                rollups::start_daily_scheduler(handle.clone());
+            } else {
+                eprintln!(
+                    "[iakatc-tray] app_data_dir indisponible — historique quota/rollups desactives."
+                );
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
