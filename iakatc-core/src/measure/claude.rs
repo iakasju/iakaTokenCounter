@@ -61,7 +61,7 @@ type Acc = HashMap<String, (u64, u64, u64, u64)>;
 /// Dernier segment d'un cwd = nom de projet. Coupe sur `/` ET `\` pour gerer les vieux
 /// transcripts Windows (`C:\iakaVODdash` -> `iakaVODdash`, `/a/b/iaka-demo` -> `iaka-demo`).
 /// Defensif : chaine vide -> `None`, segments vides (separateurs de fin) ignores.
-pub(crate) fn project_of(cwd: &str) -> Option<String> {
+pub fn project_of(cwd: &str) -> Option<String> {
     cwd.trim_end_matches(['/', '\\'])
         .rsplit(['/', '\\'])
         .find(|s| !s.is_empty())
@@ -81,7 +81,7 @@ pub(crate) const OUT_OF_PROJECT_BUCKET: &str = "hors projet";
 /// Reduit un nom de projet BRUT (sortie de [`project_of`]) a sa forme affichee : identique, sauf
 /// s'il s'agit d'une racine de portefeuille connue, auquel cas il tombe dans
 /// [`OUT_OF_PROJECT_BUCKET`] (D4).
-pub(crate) fn bucket_project(raw: String) -> String {
+pub fn bucket_project(raw: String) -> String {
     if PORTFOLIO_ROOTS.contains(&raw.as_str()) {
         OUT_OF_PROJECT_BUCKET.to_string()
     } else {
