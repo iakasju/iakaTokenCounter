@@ -9,6 +9,8 @@ mod history;
 pub mod icon;
 mod memory;
 mod mqtt_sub;
+mod quota_history;
+mod rollups;
 mod state;
 mod tray;
 
@@ -29,7 +31,9 @@ pub fn run() {
             state::get_reservoirs,
             state::open_analytics,
             history::get_history,
-            memory::get_memory_history
+            memory::get_memory_history,
+            quota_history::get_quota_history,
+            rollups::get_daily_rollups
         ])
         .setup(move |app| {
             // macOS : app tray-only. Politique d'activation `Accessory` (equiv. LSUIElement) =>

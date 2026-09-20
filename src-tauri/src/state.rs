@@ -17,6 +17,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use crate::memory::MemoryLog;
+use crate::quota_history::QuotaLog;
+use crate::rollups::RollupsLog;
 
 /// Fenetre de quota consommee par la GUI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,6 +227,13 @@ pub struct AppState {
     pub daemon_child: Mutex<Option<tauri_plugin_shell::process::CommandChild>>,
     /// Log memoire persistant (chemin resolu au `setup`). Le `Mutex` serialise sampler vs commande.
     pub memory: Mutex<MemoryLog>,
+    /// Historique de quota persistant, 90 j (feature-memoire-historique.md, L1). Meme patron que
+    /// `memory` : le `Mutex` serialise le thread sampler et la commande de lecture.
+    pub quota_history: Mutex<QuotaLog>,
+    /// Rollups quotidiens persistants, sans limite (feature-memoire-historique.md, L1). Le `Mutex`
+    /// serialise le declenchement a l'ouverture de la vue analytics, le thread quotidien de fond,
+    /// et la commande de lecture.
+    pub rollups: Mutex<RollupsLog>,
 }
 
 impl Default for AppState {
@@ -236,6 +245,8 @@ impl Default for AppState {
             daemon_child: Mutex::new(None),
             // Chemin resolu au `setup` via `app_data_dir` (cf. lib.rs) ; vide avant.
             memory: Mutex::new(MemoryLog::default()),
+            quota_history: Mutex::new(QuotaLog::default()),
+            rollups: Mutex::new(RollupsLog::default()),
         }
     }
 }
@@ -266,8 +277,14 @@ pub fn get_reservoirs(state: tauri::State<'_, AppState>) -> StateSnapshot {
 /// Commande : hook analytics (D6, rempli par feature-app-analytics). Ouvre la vue d'historique
 /// pour le compte `(provider, account)` double-clique. Le filtrage de l'historique se fait par
 /// **provider** (les logs ne portent pas l'ID de compte, D4) ; le quota en tete reste par compte.
+///
+/// Point de declenchement des rollups quotidiens (D5/etape 5 de `feature-memoire-historique.md`,
+/// L1) : « a l'ouverture de la vue analytics (deja un point de rafraichissement existant) » — pas
+/// de polling supplementaire ajoute, on branche sur cette commande deja invoquee par la webview
+/// (`main.ts`) a chaque double-clic. Best-effort : ne bloque ni n'echoue l'ouverture de la vue.
 #[tauri::command]
 pub fn open_analytics(app: tauri::AppHandle, provider: String, account: String) -> Result<(), String> {
+    crate::rollups::refresh_on_view_open(&app);
     crate::analytics::open_view(&app, &provider, &account)
 }
 
