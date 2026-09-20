@@ -7,8 +7,11 @@
 // meme palette carburant que l'icone de tray (ok ≥50 / moyen 20–49 / alerte <20).
 
 import type {
+  AgentNode,
+  AgentsSnapshot,
   Confidence,
   ReservoirCard,
+  SessionNode,
   StateSnapshot,
   WindowState,
 } from "./types";
@@ -243,6 +246,74 @@ function card(r: ReservoirCard): HTMLElement {
 
   el.addEventListener("dblclick", () => onOpenAnalytics(r.provider, r.account));
   return el;
+}
+
+// ---- Agents Claude Code en cours (feature-agents-en-cours.md, D7/D9) ----
+// Toute la logique (roster, liveness, arbre, tris, bornes) est deja resolue cote Rust : on ne fait
+// que peindre le modele recu (D9), sans aucune decision ici.
+
+/** Sprite DOM (carre arrondi lettre, D7) : couleurs et infobulle deja resolues par le backend. */
+function agentSprite(node: AgentNode): HTMLElement {
+  const el = document.createElement("span");
+  el.className = "sprite";
+  el.style.background = node.sprite.bg;
+  el.style.color = node.sprite.fg;
+  el.textContent = node.sprite.letter;
+  el.title = node.tooltip;
+  return el;
+}
+
+/** Ajoute un noeud (sprite + parenthese litterale de ses enfants, recursif) a un conteneur. */
+function appendAgentNode(container: HTMLElement, node: AgentNode): void {
+  container.appendChild(agentSprite(node));
+  if (node.children.length === 0) return;
+  const paren = document.createElement("span");
+  paren.className = "paren";
+  paren.appendChild(document.createTextNode("("));
+  node.children.forEach((child, i) => {
+    if (i > 0) paren.appendChild(document.createTextNode(" "));
+    appendAgentNode(paren, child);
+  });
+  paren.appendChild(document.createTextNode(")"));
+  container.appendChild(paren);
+}
+
+/** Une ligne de session : libelle de projet + arbre du coordinateur (D7). */
+function agentSessionRow(s: SessionNode): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "agents-row";
+  const proj = document.createElement("span");
+  proj.className = "agents-proj";
+  proj.textContent = s.project;
+  proj.title = s.project;
+  const tree = document.createElement("span");
+  tree.className = "agents-tree";
+  appendAgentNode(tree, s.coordinator);
+  row.append(proj, tree);
+  return row;
+}
+
+/**
+ * Rend la section « agents en cours » (D7) : une ligne par session vivante, sprite du
+ * coordinateur puis parentheses imbriquees pour ses delegues. Section `hidden` tant qu'aucun
+ * agent ne tourne (popover strictement inchangee au repos, D7).
+ */
+export function renderAgents(snap: AgentsSnapshot): void {
+  const section = document.getElementById("agents");
+  if (!section) return;
+  section.replaceChildren();
+  if (snap.sessions.length === 0) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  for (const s of snap.sessions) section.appendChild(agentSessionRow(s));
+  if (snap.overflowSessions !== null) {
+    const more = document.createElement("div");
+    more.className = "agents-more";
+    more.textContent = `+${snap.overflowSessions} session(s)`;
+    section.appendChild(more);
+  }
 }
 
 function banner(text: string, kind: "warn" | "error"): HTMLElement {

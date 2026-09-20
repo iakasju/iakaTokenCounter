@@ -136,3 +136,39 @@ export interface DailyRollup {
   work: number;
   volume: number;
 }
+
+// ---- Agents Claude Code en cours (feature-agents-en-cours.md) ----
+// Modele DEJA RESOLU cote backend (D9) : lettre, couleurs, infobulle, imbrication, tris et bornes
+// sont tous decides en Rust. La webview se contente de peindre (aucune logique ici). Commande
+// `get_running_agents` + evenement `tray://agents` (separe de `tray://state`, D8).
+
+/** Sprite d'un agent : lettre dans un carre arrondi a la couleur de sa pastille (miroir Rust
+ * `agents::Sprite`, D4). Type hors roster -> fond gris + sa propre premiere lettre. */
+export interface Sprite {
+  letter: string;
+  bg: string;
+  fg: string;
+}
+
+/** Noeud d'agent deja resolu pour l'affichage (miroir Rust `agents::AgentNode`, D7). Un noeud
+ * marqueur de debordement porte `overflow` non-null et n'a pas d'enfants. */
+export interface AgentNode {
+  sprite: Sprite;
+  tooltip: string;
+  children: AgentNode[];
+  overflow: number | null;
+}
+
+/** Une session vivante affichee dans la popover (miroir Rust `agents::SessionNode`, D7). */
+export interface SessionNode {
+  project: string;
+  coordinator: AgentNode;
+}
+
+/** Instantane complet des agents en cours (miroir Rust `agents::AgentsSnapshot`, D8/D9).
+ * `count` = effectif total (coordinateurs compris), meme au-dela de la troncature d'affichage. */
+export interface AgentsSnapshot {
+  count: number;
+  sessions: SessionNode[];
+  overflowSessions: number | null;
+}

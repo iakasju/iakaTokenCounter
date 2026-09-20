@@ -57,6 +57,67 @@ body {
   flex-direction: column;
 }
 
+/* Agents Claude Code en cours (feature-agents-en-cours.md, D7). Section masquee (attribut
+   `hidden`) tant qu'aucun agent ne tourne : popover strictement inchangee au repos. */
+.agents {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #000;
+}
+
+.agents-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.agents-proj {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+
+.agents-tree {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Sprite MVP (D4/D6 de l'instruction) : la lettre du persona dans un carre arrondi a la couleur
+   de sa pastille iakaframe. Couleurs (fond/texte) et infobulle sont deja resolues par le backend
+   (D9) ; ce style ne fait que peindre. */
+.sprite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+.paren {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+}
+
+.agents-more {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .banner {
   padding: 6px 12px;
   font-size: 12px;
