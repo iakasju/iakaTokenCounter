@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
+use crate::agents::AgentsSnapshot;
 use crate::memory::MemoryLog;
 use crate::quota_history::QuotaLog;
 use crate::rollups::RollupsLog;
@@ -234,6 +235,10 @@ pub struct AppState {
     /// serialise le declenchement a l'ouverture de la vue analytics, le thread quotidien de fond,
     /// et la commande de lecture.
     pub rollups: Mutex<RollupsLog>,
+    /// Instantane des agents Claude Code en cours (feature-agents-en-cours.md, D8). Champ ajoute
+    /// EN DERNIER (anti-collision avec le lot L1 ci-dessus) : le `Mutex` serialise le watcher
+    /// dedie (ecrit a chaque tick 5 s) et la commande `get_running_agents` (lit).
+    pub running_agents: Mutex<AgentsSnapshot>,
 }
 
 impl Default for AppState {
@@ -247,6 +252,9 @@ impl Default for AppState {
             memory: Mutex::new(MemoryLog::default()),
             quota_history: Mutex::new(QuotaLog::default()),
             rollups: Mutex::new(RollupsLog::default()),
+            // Vide avant le premier tick du watcher (feature-agents-en-cours.md, D8) : initialise
+            // EN DERNIER, meme discipline que le champ ci-dessus.
+            running_agents: Mutex::new(AgentsSnapshot::default()),
         }
     }
 }

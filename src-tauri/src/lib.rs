@@ -3,6 +3,7 @@
 //! `iakahub` en sidecar (D1 ; iakahub porte le broker MQTT local et le measure daemon voisin),
 //! hook analytics (D6), degradation hors-ligne (D5).
 
+mod agents;
 mod analytics;
 mod config;
 mod history;
@@ -33,7 +34,8 @@ pub fn run() {
             history::get_history,
             memory::get_memory_history,
             quota_history::get_quota_history,
-            rollups::get_daily_rollups
+            rollups::get_daily_rollups,
+            agents::get_running_agents
         ])
         .setup(move |app| {
             // macOS : app tray-only. Politique d'activation `Accessory` (equiv. LSUIElement) =>
@@ -71,6 +73,13 @@ pub fn run() {
             } else {
                 eprintln!("[iakatc-tray] app_data_dir indisponible — sampler memoire desactive.");
             }
+
+            // Agents Claude Code en cours (feature-agents-en-cours.md, D3/D8) : watcher dedie,
+            // aucune persistance (l'instantane se reconstruit a chaud depuis les sidecars a chaque
+            // tick) donc aucune resolution de repertoire de donnees requise ici, contrairement aux
+            // samplers ci-dessus/ci-dessous. Lance juste apres le sampler memoire (D8, patron
+            // repris a l'identique : thread detache).
+            agents::start_watcher(handle.clone());
 
             // Memoire de l'historique (feature-memoire-historique.md, L1) : meme repertoire de
             // donnees que le moniteur memoire. Deux journaux distincts (D2) :
