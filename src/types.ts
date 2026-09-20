@@ -100,3 +100,39 @@ export interface MemorySample {
   /** RAM totale du poste (octets). */
   totalBytes: number;
 }
+
+// ---- Memoire de l'historique (feature-memoire-historique.md, L1) ----
+// Deux series persistees localement, qui survivent a la fermeture de la fenetre, au redemarrage
+// du tray et a la purge des transcripts sources (cleanupPeriodDays). Commandes `get_quota_history`
+// et `get_daily_rollups` exposees (D5) ; **aucune visualisation ne les consomme encore** — ces
+// types ne font que preparer les consommateurs futurs (lot L4, non engage).
+
+/** Un point de quota persiste pour une serie `(provider, account, window)` (miroir Rust
+ * `quota_history::QuotaSample`). Echantillonne toutes les 5 min ou sur changement de valeur, plus
+ * un point horaire force (D2). Retention glissante 90 jours. */
+export interface QuotaSample {
+  /** Epoch en secondes. */
+  t: number;
+  provider: string;
+  account: string;
+  /** Code de fenetre du contrat (`5h` / `7d` / `30d`). */
+  window: string;
+  usedPct: number | null;
+  remainingPct: number | null;
+  resetsAt: number | null;
+  confidence: Confidence | null;
+}
+
+/** Une ligne de rollup quotidien `(jour, projet, provider, agent, model)` (miroir Rust
+ * `rollups::DailyRollup`). Recalculee a chaque ouverture de la vue analytics et une fois par jour ;
+ * un jour revolu est fige une fois ecrit (D4). Persistee sans limite de retention. */
+export interface DailyRollup {
+  day: string;
+  project: string;
+  provider: string;
+  agent: string;
+  /** Reserve pour L2 (ventilation par modele) : `null` tant que L2 n'est pas livre. */
+  model: string | null;
+  work: number;
+  volume: number;
+}
