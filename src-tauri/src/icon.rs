@@ -1,8 +1,15 @@
-//! icon — composition + rasterisation RGBA de l'icone de tray (D2/D3).
+//! icon — composition + rasterisation RGBA de l'icone de tray (D2/D3 tray-visuals, D6 agents-en-cours).
 //!
-//! Spec pixel : `docs/design/tray-icon-spec.html`. Canvas **40 × 18** (rasterise @2x en **80 × 36**),
-//! **logo officiel de marque** 16×16 a (1,1) + **deux mini-reservoirs** (pistes 18×5) a droite
-//! (5h a y=3, 7j a y=10) ; **repli 1 barre** centree a y=6.5 si le compte n'a qu'une fenetre.
+//! Spec pixel : `docs/design/tray-icon-spec.html`. Canvas **40 × 18**, logo officiel de marque
+//! 16×16 a (1,1) + deux mini-reservoirs (pistes 18×5) a droite (5h a y=3, 7j a y=10) ; repli
+//! 1 barre centree a y=6.5 si le compte n'a qu'une fenetre. **Ces 40 premiers pixels sont
+//! inchanges au pixel pres** (feature-tray-visuals.md D2, qui fait foi).
+//!
+//! **Extension (D6 de `feature-agents-en-cours.md`)** : le canvas passe a **54 × 18** (rasterise
+//! @2x en **108 × 36**). La zone ajoutee a droite (x > 40) porte le **compteur d'agents en cours**
+//! (D6/D8) : filet separateur, pastille grise neutre (jamais une teinte carburant : c'est un
+//! effectif, pas un niveau), chiffre centre (`1`..`9`, `9+` au-dela). Effectif nul -> zone vide,
+//! mais le canvas **reste a 54** de large (pas de saut de largeur a chaque tick, D6).
 //!
 //! Voie A de la spec : on **compose un SVG** (logo verbatim + rects) puis on le **rasterise** en
 //! RGBA via `resvg` (qui re-exporte `usvg` + `tiny_skia`). Le logo reste faithful au trace officiel
@@ -180,6 +187,35 @@ pub fn select_worst_account(cards: &[ReservoirCard]) -> Option<&ReservoirCard> {
     })
 }
 
+// --- Zone "agents en cours" (D6, extension de canvas). ------------------------------------------
+
+/// Largeur totale du canvas (D6) : 40 (reservoirs, inchange) + 14 (separateur + pastille compteur).
+const CANVAS_W: u32 = 54;
+const CANVAS_H: u32 = 18;
+
+/// Texte du badge d'effectif (D6) : `0` -> vide (zone non dessinee), `1..=9` -> le chiffre tel
+/// quel, au-dela -> `9+` (jamais plus large que 2 caracteres, la pastille est fixe a 12×12).
+fn count_badge_text(count: u32) -> String {
+    match count {
+        0 => String::new(),
+        1..=9 => count.to_string(),
+        _ => "9+".to_string(),
+    }
+}
+
+/// SVG de la zone "agents en cours" (filet separateur + pastille de compteur, D6). Chaine vide si
+/// l'effectif est nul (D6 : "la zone est vide (rien de dessine)", mais le canvas reste a 54).
+fn agents_zone_svg(count: u32) -> String {
+    let text = count_badge_text(count);
+    if text.is_empty() {
+        return String::new();
+    }
+    let font_size = if text.len() > 1 { 8.0 } else { 9.5 };
+    format!(
+        r##"<rect x="40.5" y="4" width="1" height="10" fill="#8e8e93" fill-opacity="0.5"/><rect x="41" y="3" width="12" height="12" rx="3.5" fill="#6f6f78"/><text x="47" y="12.2" text-anchor="middle" font-family="-apple-system,Helvetica,sans-serif" font-size="{font_size}" font-weight="700" fill="#f3f3f6">{text}</text>"##
+    )
+}
+
 // --- Composition SVG. --------------------------------------------------------------------------
 
 /// Logo officiel (SVG inline) selon le provider, place a (1,1) en 16×16. Fallback = pastille neutre
@@ -251,8 +287,10 @@ fn bar_svg(bar: &Bar, defs: &mut String, idx: usize) -> String {
     s
 }
 
-/// Compose le SVG complet 40×18 (logo + barres) d'un compte.
-fn compose_svg(card: &ReservoirCard) -> String {
+/// Compose le SVG complet 54×18 (logo + barres + zone agents, D6) d'un compte. Les 40 premiers
+/// pixels (logo + barres) sont inchanges au pixel pres (feature-tray-visuals.md D2) ; `agent_count`
+/// alimente uniquement la zone ajoutee a droite (D6).
+fn compose_svg(card: &ReservoirCard, agent_count: u32) -> String {
     let model = model_for(card);
     let logo = logo_svg(&model.provider);
     let mut defs = String::new();
@@ -260,21 +298,24 @@ fn compose_svg(card: &ReservoirCard) -> String {
     for (i, bar) in model.bars.iter().enumerate() {
         body.push_str(&bar_svg(bar, &mut defs, i));
     }
+    let agents_zone = agents_zone_svg(agent_count);
     format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="18" viewBox="0 0 40 18"><defs>{defs}</defs>{logo}{body}</svg>"#
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS_W}" height="{CANVAS_H}" viewBox="0 0 {CANVAS_W} {CANVAS_H}"><defs>{defs}</defs>{logo}{body}{agents_zone}</svg>"#
     )
 }
 
 // --- Rasterisation. ----------------------------------------------------------------------------
 
-/// Facteur retina : on rasterise le canvas 40×18 en **80 × 36** (@2x) ; macOS mettra a l'echelle.
+/// Facteur retina : on rasterise le canvas 54×18 (D6) en **108 × 36** (@2x) ; macOS mettra a
+/// l'echelle.
 const SCALE: f32 = 2.0;
-const OUT_W: u32 = 80;
+const OUT_W: u32 = 108;
 const OUT_H: u32 = 36;
 
 /// Rasterise un SVG compose en RGBA droit (non-premultiplie) `(pixels, largeur, hauteur)`.
-pub fn render_rgba(card: &ReservoirCard) -> Result<(Vec<u8>, u32, u32), String> {
-    let svg = compose_svg(card);
+/// `agent_count` alimente la zone "agents en cours" ajoutee a droite (D6).
+pub fn render_rgba(card: &ReservoirCard, agent_count: u32) -> Result<(Vec<u8>, u32, u32), String> {
+    let svg = compose_svg(card, agent_count);
     let mut opt = usvg::Options::default();
     // Fallback : rendu de l'initiale (police systeme). Charge une fois par appel (rare : fallback
     // seul cas ayant du texte). Les logos Claude/OpenAI sont des paths purs, sans police.
@@ -297,9 +338,10 @@ pub fn render_rgba(card: &ReservoirCard) -> Result<(Vec<u8>, u32, u32), String> 
     Ok((rgba, OUT_W, OUT_H))
 }
 
-/// Rasterise l'icone d'un compte en `tauri::image::Image` prete pour `tray.set_icon`.
-pub fn render_icon(card: &ReservoirCard) -> Result<Image<'static>, String> {
-    let (rgba, w, h) = render_rgba(card)?;
+/// Rasterise l'icone d'un compte en `tauri::image::Image` prete pour `tray.set_icon`. `agent_count`
+/// = effectif d'agents en cours a afficher dans la zone ajoutee a droite (D6).
+pub fn render_icon(card: &ReservoirCard, agent_count: u32) -> Result<Image<'static>, String> {
+    let (rgba, w, h) = render_rgba(card, agent_count)?;
     Ok(Image::new_owned(rgba, w, h))
 }
 
@@ -437,8 +479,10 @@ mod tests {
             ws(Some(73.0), Some("official"), true),
             ws(Some(41.0), Some("official"), true),
         );
-        let svg = compose_svg(&c);
-        assert!(svg.contains(r#"viewBox="0 0 40 18""#));
+        // Canvas etendu a 54×18 (D6 feature-agents-en-cours.md) ; les 40 premiers pixels (logo +
+        // barres) restent inchanges au pixel pres (feature-tray-visuals.md D2).
+        let svg = compose_svg(&c, 0);
+        assert!(svg.contains(r#"viewBox="0 0 54 18""#));
         assert!(svg.contains("#D97757")); // logo Claude
         assert!(svg.contains("#34c759")); // 5h ≥50 → vert
         assert!(svg.contains("#ff9f0a")); // 7j 20–49 → ambre
@@ -451,21 +495,61 @@ mod tests {
             ws(Some(14.0), Some("local_estimate"), true),
             ws(None, Some("none"), true),
         );
-        let svg = compose_svg(&c);
+        let svg = compose_svg(&c, 0);
         assert!(svg.contains("stroke-dasharray")); // 7j inconnu → piste pointillee
         assert!(svg.contains("url(#hatch")); // 5h estime → hachure
         assert!(svg.contains("#10a37f")); // logo OpenAI/Codex
     }
 
     #[test]
-    fn rendu_rgba_produit_une_image_80x36() {
+    fn rendu_rgba_produit_une_image_108x36() {
         let c = card(
             "claude",
             ws(Some(73.0), Some("official"), true),
             ws(Some(41.0), Some("official"), true),
         );
-        let img = render_icon(&c).expect("rasterisation ok");
+        let img = render_icon(&c, 0).expect("rasterisation ok");
         assert_eq!(img.width(), OUT_W);
         assert_eq!(img.height(), OUT_H);
+    }
+
+    // ---------------- D6 (feature-agents-en-cours.md) : zone "agents en cours" ----------------
+
+    #[test]
+    fn badge_texte_zero_vide_un_a_neuf_tel_quel_dix_plus_neuf_plus() {
+        assert_eq!(count_badge_text(0), "");
+        assert_eq!(count_badge_text(1), "1");
+        assert_eq!(count_badge_text(9), "9");
+        assert_eq!(count_badge_text(10), "9+");
+        assert_eq!(count_badge_text(99), "9+");
+    }
+
+    #[test]
+    fn zone_agents_vide_quand_effectif_nul() {
+        assert_eq!(agents_zone_svg(0), "");
+    }
+
+    #[test]
+    fn zone_agents_dessine_le_badge_quand_effectif_non_nul() {
+        let svg1 = agents_zone_svg(1);
+        assert!(svg1.contains(">1<"));
+        let svg10 = agents_zone_svg(10);
+        assert!(svg10.contains(">9+<"));
+    }
+
+    #[test]
+    fn canvas_reste_a_54_de_large_quel_que_soit_l_effectif() {
+        let c = card(
+            "claude",
+            ws(Some(73.0), Some("official"), true),
+            ws(None, None, false),
+        );
+        for count in [0u32, 1, 9, 10, 99] {
+            let svg = compose_svg(&c, count);
+            assert!(
+                svg.contains(r#"width="54""#) && svg.contains(r#"viewBox="0 0 54 18""#),
+                "canvas doit rester 54×18 pour effectif={count}: {svg}"
+            );
+        }
     }
 }

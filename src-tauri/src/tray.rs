@@ -1,6 +1,9 @@
-//! tray — icone de barre systeme (D4) : icone simple + tooltip du pire reservoir + clic gauche
-//! qui ouvre/masque la popover. Menu clic droit « Ouvrir » / « Quitter ». Pas de dessin fin dans
-//! l'icone (neutralise le risque cross-OS) : le detail vit dans la popover.
+//! tray — icone de barre systeme (D4) : icone composee (logo + mini-reservoirs, D2 tray-visuals),
+//! tooltip du pire reservoir, clic gauche qui ouvre/masque la popover. Menu clic droit
+//! « Ouvrir » / « Quitter ». Pas de dessin fin dans l'icone (neutralise le risque cross-OS) : le
+//! detail vit dans la popover. Ceci reste vrai pour la zone "agents en cours" ajoutee par D6 de
+//! `feature-agents-en-cours.md` : un simple chiffre d'effectif (jamais de sprite dans l'icone) ;
+//! le detail des sprites et de la parente reste dans la popover.
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -59,16 +62,21 @@ pub fn update_tooltip(app: &AppHandle, worst: Option<&Worst>, connected: bool) {
     let _ = tray.set_tooltip(Some(text));
 }
 
-/// Recompose l'icone du tray = **logo + mini-reservoirs du compte le plus critique** (D2/D3).
-/// Icone couleur **non-template** (ne s'inverse pas). Sans donnee, on garde l'icone en place.
-pub fn update_icon(app: &AppHandle, cards: &[ReservoirCard]) {
+/// Recompose l'icone du tray = **logo + mini-reservoirs du compte le plus critique** (D2/D3) +
+/// **compteur d'agents en cours** a droite (D6 de `feature-agents-en-cours.md`). Icone couleur
+/// **non-template** (ne s'inverse pas). Sans donnee de reservoir, on garde l'icone en place (le
+/// compteur d'agents seul ne suffit pas a produire une icone : il lui faut un logo/des barres).
+/// Appelee par les DEUX chemins independants qui peuvent faire varier l'icone : `mqtt_sub::push_state`
+/// (nouvelle donnee de quota) et `agents::run_watcher` (nouvel effectif) — D8 : chacun fournit la
+/// donnee qu'il possede, l'autre est relue depuis `AppState`.
+pub fn update_icon(app: &AppHandle, cards: &[ReservoirCard], agent_count: u32) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
     };
     let Some(card) = crate::icon::select_worst_account(cards) else {
         return; // aucun compte encore : on conserve l'icone par defaut.
     };
-    match crate::icon::render_icon(card) {
+    match crate::icon::render_icon(card, agent_count) {
         Ok(img) => {
             let _ = tray.set_icon(Some(img));
             // Couleur de marque : surtout pas de mode template (qui la teindrait en monochrome).
